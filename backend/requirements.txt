@@ -1,0 +1,21 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.0
+pydantic-settings==2.5.0
+python-multipart==0.0.12
+python-dotenv==1.0.1
+
+# PDF Processing
+PyMuPDF==1.24.13
+
+# AI/ML
+sentence-transformers==3.2.1
+faiss-cpu
+google-generativeai==0.8.3
+
+# Database
+aiosqlite==0.20.0
+
+# Utilities
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4

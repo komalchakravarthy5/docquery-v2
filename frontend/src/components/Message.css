@@ -1,0 +1,83 @@
+.message {
+  display: flex;
+  gap: var(--spacing-sm);
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.message-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-width: 70%;
+}
+
+.message.user .message-content {
+  align-items: flex-end;
+}
+
+.message-bubble {
+  background: var(--color-surface);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.message.user .message-bubble {
+  background: linear-gradient(135deg, rgba(193, 255, 114, 0.2), rgba(157, 93, 255, 0.2));
+  border-color: var(--color-accent-primary);
+}
+
+.message.error .message-bubble {
+  background: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.3);
+}
+
+.message-bubble p {
+  margin: 0;
+  color: var(--color-text-primary);
+  line-height: 1.6;
+}
+
+.citations-container {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: rgba(193, 255, 114, 0.05);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(193, 255, 114, 0.2);
+}
+
+.citations-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.citations-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 0 var(--spacing-xs);
+}
