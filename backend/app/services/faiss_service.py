@@ -120,7 +120,12 @@ class FAISSService:
             top_k = settings.top_k_retrieval
         
         index = self.indices[document_id]
-        
+
+        if index.ntotal == 0:
+            return np.array([], dtype=np.float32), np.array([], dtype=np.int64)
+
+        top_k = min(top_k, index.ntotal)
+
         # Ensure query is 2D array and float32
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)

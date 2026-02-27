@@ -9,6 +9,14 @@ const apiClient = axios.create({
   },
 });
 
+const getErrorMessage = (error, fallback) => {
+  return (
+    error?.response?.data?.detail
+    || error?.message
+    || fallback
+  );
+};
+
 export const api = {
   // Health check
   health: async () => {
@@ -18,30 +26,42 @@ export const api = {
 
   // Upload PDF
   uploadDocument: async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    const response = await apiClient.post('/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+      const response = await apiClient.post('/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to upload document.'));
+    }
   },
 
   // Query document
   queryDocument: async (documentId, query) => {
-    const response = await apiClient.post('/query', {
-      document_id: documentId,
-      query: query,
-    });
-    return response.data;
+    try {
+      const response = await apiClient.post('/query', {
+        document_id: documentId,
+        query: query.trim(),
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to query document.'));
+    }
   },
 
   // List documents
   listDocuments: async () => {
-    const response = await apiClient.get('/documents');
-    return response.data;
+    try {
+      const response = await apiClient.get('/documents');
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to list documents.'));
+    }
   },
 };
 

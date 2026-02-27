@@ -21,7 +21,7 @@ function App() {
       });
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Failed to upload document. Please try again.');
+      alert(error.message || 'Failed to upload document. Please try again.');
     } finally {
       setIsUploading(false);
     }

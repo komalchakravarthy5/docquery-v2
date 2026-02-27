@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # Google Gemini API
-    gemini_api_key: str
+    gemini_api_key: str = ""
     gemini_model: str = "gemini-1.5-flash"
     gemini_temperature: float = 0.2  # Low temperature for factual RAG responses
     

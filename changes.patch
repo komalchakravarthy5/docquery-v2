@@ -1,0 +1,1159 @@
+diff --git a/.gitignore b/.gitignore
+index db6cf1bba700245642dfc14a6ecdefd76a9eb8ac..9cdef5b8a1d9237c9d0e74f063454a1a2639cdea 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -38,25 +38,29 @@ dist/
+ .vscode/
+ .idea/
+ *.swp
+ *.swo
+ *~
+ .DS_Store
+ 
+ # OS
+ Thumbs.db
+ desktop.ini
+ 
+ # Temporary files
+ *.tmp
+ *.temp
+ .pytest_cache/
+ .coverage
+ htmlcov/
+ 
+ # Model cache (sentence-transformers downloads models)
+ .cache/
+ models/
+ 
+ # Logs
+ *.log
+ logs/
++
++# Keep backend API schema models tracked
++!backend/app/models/
++!backend/app/models/*.py
+diff --git a/NEW_REPO_AND_VERIFICATION.md b/NEW_REPO_AND_VERIFICATION.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..53ac40be61b392f9d5705275cabc7268d73c7848
+--- /dev/null
++++ b/NEW_REPO_AND_VERIFICATION.md
+@@ -0,0 +1,167 @@
++# Create a New GitHub Repo (Keep Old Repo Untouched) + Verify DocQuery Works
++
++This guide helps you publish this project as a **new GitHub repository** so your old version stays unchanged.
++
++---
++
++## 1) Create a NEW empty repository on GitHub
++
++1. Open GitHub → **New repository**
++2. Choose a new name (example: `docquery-v2`)
++3. Keep it **empty** (do not add README/.gitignore/license)
++4. Create repo
++
++GitHub will show a URL like:
++
++- HTTPS: `https://github.com/<your-username>/docquery-v2.git`
++- SSH: `git@github.com:<your-username>/docquery-v2.git`
++
++---
++
++## 2) Point this local project to the NEW repo and push
++
++From project root:
++
++```bash
++git remote -v
++```
++
++If `origin` exists and points to old repo, replace it with the new one:
++
++```bash
++git remote set-url origin https://github.com/<your-username>/docquery-v2.git
++# OR
++git remote set-url origin git@github.com:<your-username>/docquery-v2.git
++```
++
++If no `origin` exists, add it:
++
++```bash
++git remote add origin https://github.com/<your-username>/docquery-v2.git
++```
++
++Push current branch:
++
++```bash
++git push -u origin work
++```
++
++If your default branch should be `main`:
++
++```bash
++git branch -M main
++git push -u origin main
++```
++
++> Your **old GitHub repo is not modified** unless you push to it.
++
++---
++
++## 3) Configure backend env
++
++Create backend env file:
++
++```bash
++cd backend
++cp .env.example .env 2>/dev/null || true
++```
++
++Set your Gemini key in `backend/.env`:
++
++```env
++GEMINI_API_KEY=your_real_key_here
++```
++
++---
++
++## 4) Run locally (2 terminals)
++
++### Terminal A (backend)
++
++```bash
++cd backend
++python -m venv venv
++source venv/bin/activate   # Linux/Mac
++pip install -r requirements.txt
++python -m app.main
++```
++
++Backend health URL:
++
++- `http://localhost:8000/api/health`
++
++### Terminal B (frontend)
++
++```bash
++cd frontend
++npm install
++npm run dev
++```
++
++Frontend URL:
++
++- `http://localhost:5173`
++
++---
++
++## 5) How to verify it is working
++
++### A) Basic health check
++
++```bash
++curl http://localhost:8000/api/health
++```
++
++Expect JSON with `status: "healthy"`.
++
++### B) Upload test PDF
++
++```bash
++curl -X POST http://localhost:8000/api/upload -F "file=@/absolute/path/to/test.pdf"
++```
++
++Save the returned `document_id`.
++
++### C) Query test
++
++```bash
++curl -X POST http://localhost:8000/api/query \
++  -H "Content-Type: application/json" \
++  -d '{"document_id":"<document_id>","query":"What is this document about?"}'
++```
++
++Expect:
++
++- `answer` text
++- non-empty `citations` (if relevant text exists)
++
++### D) List uploaded docs
++
++```bash
++curl http://localhost:8000/api/documents
++```
++
++---
++
++## 6) Common issues checklist
++
++- `ModuleNotFoundError`: make sure backend venv is active and dependencies installed.
++- Gemini errors: ensure `GEMINI_API_KEY` is set in `backend/.env`.
++- CORS/UI connection: backend must run on `:8000`, frontend on `:5173`.
++- Empty answers: verify PDF contains extractable text (not only scanned images).
++
++---
++
++## 7) Quick production sanity checks before sharing
++
++From project root:
++
++```bash
++# backend syntax check
++python -m py_compile backend/app/main.py
++
++# frontend production build
++cd frontend && npm run build
++```
++
++If both pass, repo is usually ready for sharing.
+diff --git a/backend/app/api/routes/query.py b/backend/app/api/routes/query.py
+index 3ba9a84cb3d6cc477d8ddc0781c2086447dd2cae..d74789edb7d84e1301bd2f336df8b6c6a76d5f44 100644
+--- a/backend/app/api/routes/query.py
++++ b/backend/app/api/routes/query.py
+@@ -1,64 +1,64 @@
+ from fastapi import APIRouter, HTTPException
+-from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo
++from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo, DocumentListResponse
+ from app.services.rag_service import rag_service
+ from app.services.database import database_service
+ 
+ router = APIRouter()
+ 
+ 
+ @router.post("/query", response_model=QueryResponse)
+ async def query_document(request: QueryRequest):
+     """
+     Query a document using natural language
+     
+     This endpoint will:
+     1. Generate embedding for the query
+     2. Retrieve top-k relevant chunks from FAISS
+     3. Use RAG to generate an answer with citations
+     """
+     try:
+         # Execute RAG pipeline
+         response = await rag_service.query_document(
+             document_id=request.document_id,
+             query=request.query
+         )
+         
+         return response
+         
+     except ValueError as e:
+         # Document not found or invalid
+         raise HTTPException(status_code=404, detail=str(e))
+     except Exception as e:
+         # Other errors
+         raise HTTPException(
+             status_code=500,
+             detail=f"Error processing query: {str(e)}"
+         )
+ 
+ 
+-@router.get("/documents")
++@router.get("/documents", response_model=DocumentListResponse)
+ async def list_documents():
+     """List all uploaded documents"""
+     try:
+         # Initialize database if needed
+         await database_service.initialize()
+         
+         # Get all documents
+         documents = await database_service.list_documents()
+         
+         # Convert to response format
+         document_list = [
+             DocumentInfo(
+                 id=doc["id"],
+                 filename=doc["filename"],
+                 upload_timestamp=doc["upload_timestamp"],
+                 num_pages=doc["num_pages"],
+                 num_chunks=doc["num_chunks"]
+             )
+             for doc in documents
+         ]
+         
+         return {"documents": document_list}
+         
+     except Exception as e:
+         raise HTTPException(
+diff --git a/backend/app/config.py b/backend/app/config.py
+index fd84dfeb0a2f43ed0eadab182b3ebda919e6cf04..2277671f56792fd6fa6d25f51bbe9111df88359a 100644
+--- a/backend/app/config.py
++++ b/backend/app/config.py
+@@ -1,40 +1,40 @@
+ from pydantic_settings import BaseSettings
+ from functools import lru_cache
+ 
+ 
+ class Settings(BaseSettings):
+     """Application configuration settings"""
+     
+     # API Settings
+     app_name: str = "DocQuery"
+     debug: bool = True
+     host: str = "0.0.0.0"
+     port: int = 8000
+     
+     # Google Gemini API
+-    gemini_api_key: str
++    gemini_api_key: str = ""
+     gemini_model: str = "gemini-1.5-flash"
+     gemini_temperature: float = 0.2  # Low temperature for factual RAG responses
+     
+     # CORS
+     allowed_origins: str = "http://localhost:5173,http://localhost:3000"
+     
+     @property
+     def cors_origins(self) -> list[str]:
+         """Parse CORS origins from comma-separated string"""
+         return [origin.strip() for origin in self.allowed_origins.split(",")]
+     
+     # Storage Paths
+     upload_dir: str = "./data/uploads"
+     faiss_index_dir: str = "./data/faiss_index"
+     database_path: str = "./data/metadata.db"
+     
+     # Model Settings
+     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+     top_k_retrieval: int = 5
+     
+     # Chunking Settings
+     chunk_size: int = 500
+     chunk_overlap: int = 50
+     
+     class Config:
+diff --git a/backend/app/models/__init__.py b/backend/app/models/__init__.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c5fd8c28a6477f50340a1185644435beee2bb6a
+--- /dev/null
++++ b/backend/app/models/__init__.py
+@@ -0,0 +1,21 @@
++"""Pydantic schemas package."""
++
++from app.models.schemas import (
++    Citation,
++    DocumentInfo,
++    DocumentListResponse,
++    DocumentUploadResponse,
++    HealthResponse,
++    QueryRequest,
++    QueryResponse,
++)
++
++__all__ = [
++    "Citation",
++    "DocumentInfo",
++    "DocumentListResponse",
++    "DocumentUploadResponse",
++    "HealthResponse",
++    "QueryRequest",
++    "QueryResponse",
++]
+diff --git a/backend/app/models/schemas.py b/backend/app/models/schemas.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..189aa3619d13857b2fd72c25a79642b22217759e
+--- /dev/null
++++ b/backend/app/models/schemas.py
+@@ -0,0 +1,49 @@
++"""API request and response schemas."""
++
++from typing import List
++from pydantic import BaseModel, Field
++
++
++class HealthResponse(BaseModel):
++    status: str
++    app_name: str
++    models_loaded: bool
++
++
++class DocumentUploadResponse(BaseModel):
++    document_id: str
++    filename: str
++    num_pages: int
++    num_chunks: int
++    message: str
++
++
++class QueryRequest(BaseModel):
++    document_id: str = Field(..., min_length=1)
++    query: str = Field(..., min_length=2, max_length=2000)
++
++
++class Citation(BaseModel):
++    chunk_id: int
++    page_number: int
++    text_snippet: str
++    relevance_score: float = Field(..., ge=0.0, le=1.0)
++
++
++class QueryResponse(BaseModel):
++    answer: str
++    citations: List[Citation]
++    document_id: str
++    query: str
++
++
++class DocumentInfo(BaseModel):
++    id: str
++    filename: str
++    upload_timestamp: str
++    num_pages: int
++    num_chunks: int
++
++
++class DocumentListResponse(BaseModel):
++    documents: List[DocumentInfo]
+diff --git a/backend/app/services/faiss_service.py b/backend/app/services/faiss_service.py
+index 2104b390af650a6dbe3a2c57c8c72bfdab9b816a..27926c8d8f10b164762026f5b074d7a83c72f44f 100644
+--- a/backend/app/services/faiss_service.py
++++ b/backend/app/services/faiss_service.py
+@@ -98,51 +98,56 @@ class FAISSService:
+         self,
+         document_id: str,
+         query_embedding: np.ndarray,
+         top_k: int = None
+     ) -> Tuple[np.ndarray, np.ndarray]:
+         """
+         Search for similar embeddings in the index.
+         
+         Args:
+             document_id: Document identifier
+             query_embedding: Query embedding vector of shape (embedding_dim,)
+             top_k: Number of results to return (default from config)
+             
+         Returns:
+             Tuple of (distances, indices)
+             - distances: Array of shape (top_k,) with L2 distances
+             - indices: Array of shape (top_k,) with chunk indices
+         """
+         if document_id not in self.indices:
+             raise ValueError(f"No index loaded for document: {document_id}")
+         
+         if top_k is None:
+             top_k = settings.top_k_retrieval
+         
+         index = self.indices[document_id]
+-        
++
++        if index.ntotal == 0:
++            return np.array([], dtype=np.float32), np.array([], dtype=np.int64)
++
++        top_k = min(top_k, index.ntotal)
++
+         # Ensure query is 2D array and float32
+         if query_embedding.ndim == 1:
+             query_embedding = query_embedding.reshape(1, -1)
+         if query_embedding.dtype != np.float32:
+             query_embedding = query_embedding.astype(np.float32)
+         
+         # Search
+         distances, indices = index.search(query_embedding, top_k)
+         
+         # Return flattened results (since we only query one vector)
+         return distances[0], indices[0]
+     
+     def get_index_size(self, document_id: str) -> int:
+         """
+         Get number of vectors in the index.
+         
+         Args:
+             document_id: Document identifier
+             
+         Returns:
+             Number of vectors in index
+         """
+         if document_id not in self.indices:
+             return 0
+         return self.indices[document_id].ntotal
+diff --git a/backend/app/services/gemini_service.py b/backend/app/services/gemini_service.py
+index a8a9f06360c45c490205335a8fd7b74f33145572..f2604b0cd820677c0535cad57d4a69eeaf7d2078 100644
+--- a/backend/app/services/gemini_service.py
++++ b/backend/app/services/gemini_service.py
+@@ -1,149 +1,120 @@
+ """
+ Google Gemini Service
+ Handles LLM-based answer generation using Google Gemini API.
+ """
+ 
+ import google.generativeai as genai
+ from typing import List, Dict
+ from app.config import get_settings
+ 
+ settings = get_settings()
+ 
+ 
+ class GeminiService:
+     """Manages Google Gemini API for answer generation"""
+-    
++
+     _instance = None
+     _model = None
+-    
++
+     def __new__(cls):
+         """Singleton pattern"""
+         if cls._instance is None:
+             cls._instance = super(GeminiService, cls).__new__(cls)
+         return cls._instance
+-    
++
+     def __init__(self):
+         """Initialize Gemini service"""
+         self.model_name = settings.gemini_model
+         self.api_key = settings.gemini_api_key
+-    
++
+     def _initialize_model(self):
+         """Initialize Gemini model (lazy loading)"""
+-        if self._model is None:
+-            # Configure API key
+-            genai.configure(api_key=self.api_key)
+-            
+-            # Initialize model
+-            self._model = genai.GenerativeModel(self.model_name)
+-            print(f"✅ Gemini model initialized: {self.model_name}")
+-    
++        if self._model is not None:
++            return
++
++        if not self.api_key:
++            raise ValueError("GEMINI_API_KEY is missing. Set it in backend/.env to enable query generation.")
++
++        genai.configure(api_key=self.api_key)
++        self._model = genai.GenerativeModel(self.model_name)
++        print(f"✅ Gemini model initialized: {self.model_name}")
++
+     def generate_answer(
+         self,
+         query: str,
+         context_chunks: List[Dict[str, any]],
+         max_context_length: int = 4000
+     ) -> str:
+-        """
+-        Generate answer using RAG approach.
+-        
+-        Args:
+-            query: User's question
+-            context_chunks: List of relevant chunks with 'text' and 'page_number'
+-            max_context_length: Maximum characters for context
+-            
+-        Returns:
+-            Generated answer string
+-        """
++        """Generate answer using RAG approach."""
++        if not context_chunks:
++            return "I cannot find this information in the document."
++
+         self._initialize_model()
+-        
+-        # Build context from chunks
++
+         context = self._build_context(context_chunks, max_context_length)
+-        
+-        # Create RAG prompt
++        if not context.strip():
++            return "I cannot find this information in the document."
++
+         prompt = self._create_rag_prompt(query, context)
+-        
++
+         try:
+-            # Generate response with temperature control
+             response = self._model.generate_content(
+                 prompt,
+                 generation_config=genai.types.GenerationConfig(
+                     temperature=settings.gemini_temperature,
+                 )
+             )
+-            answer = response.text
+-            return answer
++            answer = (response.text or "").strip()
++            return answer or "I cannot find this information in the document."
+         except Exception as e:
+             print(f"❌ Error generating answer: {str(e)}")
+             raise Exception(f"Failed to generate answer: {str(e)}")
+-    
++
+     def _build_context(
+         self,
+         chunks: List[Dict[str, any]],
+         max_length: int
+     ) -> str:
+-        """
+-        Build context string from chunks with page references.
+-        
+-        Args:
+-            chunks: List of chunk dictionaries
+-            max_length: Maximum total length
+-            
+-        Returns:
+-            Formatted context string
+-        """
++        """Build context string from chunks with page references."""
+         context_parts = []
+         current_length = 0
+-        
+-        for i, chunk in enumerate(chunks):
++
++        for chunk in chunks:
+             text = chunk.get("text", "")
+             page_num = chunk.get("page_number", "?")
+-            
+-            # Format: [Page X] text content
+             chunk_text = f"[Page {page_num}] {text}"
+             chunk_length = len(chunk_text)
+-            
+-            # Check if adding this chunk exceeds limit
++
+             if current_length + chunk_length > max_length:
+                 break
+-            
++
+             context_parts.append(chunk_text)
+             current_length += chunk_length
+-        
++
+         return "\n\n".join(context_parts)
+-    
++
+     def _create_rag_prompt(self, query: str, context: str) -> str:
+-        """
+-        Create RAG prompt template.
+-        
+-        Args:
+-            query: User's question
+-            context: Context from retrieved chunks
+-            
+-        Returns:
+-            Formatted prompt
+-        """
+-        prompt = f"""You are a helpful AI assistant answering questions about a document. Your task is to provide accurate, clear answers based ONLY on the provided context.
++        """Create RAG prompt template."""
++        return f"""You are a helpful AI assistant answering questions about a document. Your task is to provide accurate, clear answers based ONLY on the provided context.
+ 
+ Context from the document:
+ {context}
+ 
+ Question: {query}
+ 
+ Instructions:
+-1. Answer the question using ONLY the information from the context above
+-2. If the answer is not in the context, clearly state "I cannot find this information in the document"
+-3. Be concise but complete
+-4. If you reference specific information, mention the page number
+-5. Do not make up or infer information not present in the context
++1. Answer the question using ONLY the information from the context above.
++2. If the answer is not in the context, clearly state: I cannot find this information in the document.
++3. Keep the answer concise, factual, and directly useful.
++4. Mention page number(s) when citing facts.
++5. Do not hallucinate, infer, or fabricate.
+ 
+ Answer:"""
+-        
+-        return prompt
+-    
++
+     def is_initialized(self) -> bool:
+         """Check if model is initialized"""
+         return self._model is not None
+ 
+ 
+ # Singleton instance
+ gemini_service = GeminiService()
+diff --git a/backend/app/services/rag_service.py b/backend/app/services/rag_service.py
+index 8797c45733ebbd94c72cabdf818405e8113fa964..9d7e71d0d5a71dd1094abdbf4c92cf4c0739b240 100644
+--- a/backend/app/services/rag_service.py
++++ b/backend/app/services/rag_service.py
+@@ -1,137 +1,130 @@
+ """
+ RAG Service
+ Orchestrates the complete Retrieval-Augmented Generation pipeline.
+ """
+ 
+ from typing import List
+ from app.models.schemas import QueryResponse, Citation
+ from app.services.embedding_service import embedding_service
+ from app.services.faiss_service import faiss_service
+ from app.services.database import database_service
+ from app.services.gemini_service import gemini_service
+ from app.services.storage import storage_service
+ from app.config import get_settings
+ 
+ settings = get_settings()
+ 
+ 
+ class RAGService:
+     """Orchestrates the complete RAG pipeline"""
+-    
++
+     async def query_document(
+         self,
+         document_id: str,
+         query: str,
+         top_k: int = None
+     ) -> QueryResponse:
+-        """
+-        Execute complete RAG pipeline for a query.
+-        
+-        Pipeline steps:
+-        1. Validate document exists
+-        2. Generate query embedding
+-        3. Search FAISS index for similar chunks
+-        4. Retrieve chunk text from database
+-        5. Generate answer using Gemini
+-        6. Format response with citations
+-        
+-        Args:
+-            document_id: Document identifier
+-            query: User's question
+-            top_k: Number of chunks to retrieve (default from config)
+-            
+-        Returns:
+-            QueryResponse with answer and citations
+-        """
++        """Execute complete RAG pipeline for a query."""
+         if top_k is None:
+             top_k = settings.top_k_retrieval
+-        
+-        # Step 1: Validate document exists
+-        doc_exists = await database_service.document_exists(document_id)
+-        if not doc_exists:
++
++        # Ensure DB is ready
++        await database_service.initialize()
++
++        # Step 1: Validate document exists and adapt retrieval size for small docs
++        doc = await database_service.get_document(document_id)
++        if not doc:
+             raise ValueError(f"Document not found: {document_id}")
+-        
++
++        num_chunks = int(doc.get("num_chunks", 0))
++        if num_chunks <= 0:
++            raise ValueError(f"No indexed chunks found for document: {document_id}")
++
++        adaptive_top_k = min(max(1, top_k), num_chunks)
++
+         # Step 2: Load FAISS index if not already loaded
+         if not faiss_service.index_exists(document_id):
+             index_path = storage_service.get_faiss_index_path(document_id)
+             if not storage_service.faiss_index_exists(document_id):
+                 raise ValueError(f"FAISS index not found for document: {document_id}")
+             faiss_service.load_index(document_id, index_path)
+-        
++
+         # Step 3: Generate query embedding
+         query_embedding = embedding_service.encode_text(query)
+-        
++
+         # Step 4: Search FAISS index
+         distances, indices = faiss_service.search(
+             document_id=document_id,
+             query_embedding=query_embedding,
+-            top_k=top_k
++            top_k=adaptive_top_k
+         )
+-        
++
++        if len(indices) == 0:
++            return QueryResponse(
++                answer="I cannot find this information in the document.",
++                citations=[],
++                document_id=document_id,
++                query=query,
++            )
++
+         # Step 5: Retrieve chunks from database
+-        chunk_indices = indices.tolist()
++        chunk_indices = [int(idx) for idx in indices.tolist() if int(idx) >= 0]
++        if not chunk_indices:
++            return QueryResponse(
++                answer="I cannot find this information in the document.",
++                citations=[],
++                document_id=document_id,
++                query=query,
++            )
++
+         chunks = await database_service.get_chunks_by_indices(document_id, chunk_indices)
+-        
++
+         # Sort chunks by relevance (same order as FAISS results)
+         chunks_dict = {chunk["chunk_index"]: chunk for chunk in chunks}
+         sorted_chunks = [chunks_dict[idx] for idx in chunk_indices if idx in chunks_dict]
+-        
++
+         # Step 6: Generate answer using Gemini
+         answer = gemini_service.generate_answer(
+             query=query,
+             context_chunks=sorted_chunks
+         )
+-        
++
+         # Step 7: Create citations
+         citations = self._create_citations(sorted_chunks, distances)
+-        
++
+         # Step 8: Return response
+         return QueryResponse(
+             answer=answer,
+             citations=citations,
+             document_id=document_id,
+             query=query
+         )
+-    
++
+     def _create_citations(
+         self,
+         chunks: List[dict],
+         distances: List[float]
+     ) -> List[Citation]:
+-        """
+-        Create citation objects from retrieved chunks.
+-        
+-        Args:
+-            chunks: Retrieved chunk dictionaries
+-            distances: L2 distances from FAISS
+-            
+-        Returns:
+-            List of Citation objects
+-        """
++        """Create citation objects from retrieved chunks."""
+         citations = []
+-        
++
+         for i, chunk in enumerate(chunks):
+-            # Convert L2 distance to similarity score (0-1 range)
+-            # Lower distance = higher similarity
+-            distance = float(distances[i])
+-            # Simple normalization (you can adjust this)
++            distance = float(distances[i]) if i < len(distances) else 10.0
+             relevance_score = max(0.0, 1.0 - (distance / 10.0))
+-            
+-            # Create text snippet (first 200 chars)
++
+             text_snippet = chunk["text"][:200]
+             if len(chunk["text"]) > 200:
+                 text_snippet += "..."
+-            
+-            citation = Citation(
++
++            citations.append(Citation(
+                 chunk_id=chunk["chunk_index"],
+                 page_number=chunk["page_number"],
+                 text_snippet=text_snippet,
+                 relevance_score=round(relevance_score, 3)
+-            )
+-            citations.append(citation)
+-        
++            ))
++
+         return citations
+ 
+ 
+ # Singleton instance
+ rag_service = RAGService()
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index e1039130928a2e6207e7719e7afb9ed221198a27..1f18b05e6459999b57574941b8c9a86a97566608 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -1,49 +1,49 @@
+ import React, { useState } from 'react';
+ import Header from './components/Header';
+ import UploadZone from './components/UploadZone';
+ import ChatInterface from './components/ChatInterface';
+ import { api } from './services/api';
+ import './App.css';
+ 
+ function App() {
+   const [currentDocument, setCurrentDocument] = useState(null);
+   const [isUploading, setIsUploading] = useState(false);
+ 
+   const handleUpload = async (file) => {
+     setIsUploading(true);
+     try {
+       const response = await api.uploadDocument(file);
+       setCurrentDocument({
+         id: response.document_id,
+         name: response.filename,
+         numPages: response.num_pages,
+         numChunks: response.num_chunks,
+       });
+     } catch (error) {
+       console.error('Error uploading document:', error);
+-      alert('Failed to upload document. Please try again.');
++      alert(error.message || 'Failed to upload document. Please try again.');
+     } finally {
+       setIsUploading(false);
+     }
+   };
+ 
+   const handleNewDocument = () => {
+     setCurrentDocument(null);
+   };
+ 
+   return (
+     <div className="app">
+       <Header />
+ 
+       <main className="main-content">
+         <div className="container">
+           {!currentDocument ? (
+             <div className="hero-section">
+               <div className="hero-text fade-in-up">
+                 <h1>
+                   Chat with Your <span className="gradient-text">Documents</span>
+                 </h1>
+                 <p className="hero-subtitle">
+                   Upload a PDF and ask questions. Get accurate, citation-backed answers powered by AI.
+                 </p>
+               </div>
+diff --git a/frontend/src/components/ChatInterface.jsx b/frontend/src/components/ChatInterface.jsx
+index cc58646f14b6ea6b67835fcea2848f10c6d3afa9..97a0b2490db232547f7da3542f17214d996abbc0 100644
+--- a/frontend/src/components/ChatInterface.jsx
++++ b/frontend/src/components/ChatInterface.jsx
+@@ -1,142 +1,142 @@
+ import React, { useState, useRef, useEffect } from 'react';
+ import Message from './Message';
++import { api } from '../services/api';
+ import './ChatInterface.css';
+ 
+ const ChatInterface = ({ documentId, documentName }) => {
+   const [messages, setMessages] = useState([]);
+   const [inputValue, setInputValue] = useState('');
+   const [isLoading, setIsLoading] = useState(false);
+   const messagesEndRef = useRef(null);
+ 
+   const scrollToBottom = () => {
+     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+   };
+ 
+   useEffect(() => {
+     scrollToBottom();
+   }, [messages]);
+ 
+   const handleSend = async () => {
+-    if (!inputValue.trim() || isLoading) return;
++    const trimmedInput = inputValue.trim();
++    if (!trimmedInput || isLoading) return;
+ 
+     const userMessage = {
+       id: Date.now(),
+       type: 'user',
+-      content: inputValue,
++      content: trimmedInput,
+       timestamp: new Date(),
+     };
+ 
+-    setMessages(prev => [...prev, userMessage]);
++    setMessages((prev) => [...prev, userMessage]);
+     setInputValue('');
+     setIsLoading(true);
+ 
+     try {
+-      // Import API dynamically to avoid circular dependencies
+-      const { api } = await import('../services/api');
+-      const response = await api.queryDocument(documentId, inputValue);
++      const response = await api.queryDocument(documentId, trimmedInput);
+ 
+       const botMessage = {
+         id: Date.now() + 1,
+         type: 'bot',
+         content: response.answer,
+         citations: response.citations,
+         timestamp: new Date(),
+       };
+ 
+-      setMessages(prev => [...prev, botMessage]);
++      setMessages((prev) => [...prev, botMessage]);
+     } catch (error) {
+       console.error('Error querying document:', error);
+       const errorMessage = {
+         id: Date.now() + 1,
+         type: 'bot',
+-        content: 'Sorry, I encountered an error processing your question. Please try again.',
++        content: error.message || 'Sorry, I encountered an error processing your question. Please try again.',
+         timestamp: new Date(),
+         isError: true,
+       };
+-      setMessages(prev => [...prev, errorMessage]);
++      setMessages((prev) => [...prev, errorMessage]);
+     } finally {
+       setIsLoading(false);
+     }
+   };
+ 
+   const handleKeyPress = (e) => {
+     if (e.key === 'Enter' && !e.shiftKey) {
+       e.preventDefault();
+       handleSend();
+     }
+   };
+ 
+   return (
+     <div className="chat-interface">
+       <div className="chat-header">
+         <div className="chat-header-content">
+           <div className="doc-indicator">
+             <span className="doc-icon">📄</span>
+             <div>
+               <h3>Chatting with</h3>
+               <p className="doc-name">{documentName}</p>
+             </div>
+           </div>
+         </div>
+       </div>
+ 
+       <div className="messages-container">
+         {messages.length === 0 ? (
+           <div className="empty-state">
+             <div className="empty-icon">💬</div>
+             <h3>Start a Conversation</h3>
+             <p>Ask questions about your document and get citation-backed answers</p>
+             <div className="example-questions">
+               <p className="example-label">Try asking:</p>
+-              <button className="example-btn" onClick={() => setInputValue("What is the main topic of this document?")}>
++              <button className="example-btn" onClick={() => setInputValue('What is the main topic of this document?')}>
+                 "What is the main topic of this document?"
+               </button>
+-              <button className="example-btn" onClick={() => setInputValue("Summarize the key findings")}>
++              <button className="example-btn" onClick={() => setInputValue('Summarize the key findings')}>
+                 "Summarize the key findings"
+               </button>
+             </div>
+           </div>
+         ) : (
+           <>
+-            {messages.map(message => (
++            {messages.map((message) => (
+               <Message key={message.id} message={message} />
+             ))}
+             {isLoading && (
+               <div className="loading-message">
+                 <div className="loading-dots">
+                   <span></span>
+                   <span></span>
+                   <span></span>
+                 </div>
+               </div>
+             )}
+             <div ref={messagesEndRef} />
+           </>
+         )}
+       </div>
+ 
+       <div className="chat-input-container">
+         <div className="chat-input-wrapper">
+           <textarea
+             className="chat-input"
+             placeholder="Ask a question about your document..."
+             value={inputValue}
+             onChange={(e) => setInputValue(e.target.value)}
+-            onKeyPress={handleKeyPress}
++            onKeyDown={handleKeyPress}
+             disabled={isLoading}
+             rows={1}
+           />
+           <button
+             className="send-btn"
+             onClick={handleSend}
+             disabled={!inputValue.trim() || isLoading}
+           >
+             <span className="send-icon">➤</span>
+           </button>
+         </div>
+       </div>
+     </div>
+   );
+ };
+ 
+ export default ChatInterface;
+diff --git a/frontend/src/services/api.js b/frontend/src/services/api.js
+index dcd681f1ab5a8985a31ec952d1a19a92faef4500..d55a6ae6f8f1dece49b0339483a05ef1f5610b9e 100644
+--- a/frontend/src/services/api.js
++++ b/frontend/src/services/api.js
+@@ -1,48 +1,68 @@
+ import axios from 'axios';
+ 
+ const API_BASE_URL = 'http://localhost:8000/api';
+ 
+ const apiClient = axios.create({
+   baseURL: API_BASE_URL,
+   headers: {
+     'Content-Type': 'application/json',
+   },
+ });
+ 
++const getErrorMessage = (error, fallback) => {
++  return (
++    error?.response?.data?.detail
++    || error?.message
++    || fallback
++  );
++};
++
+ export const api = {
+   // Health check
+   health: async () => {
+     const response = await apiClient.get('/health');
+     return response.data;
+   },
+ 
+   // Upload PDF
+   uploadDocument: async (file) => {
+-    const formData = new FormData();
+-    formData.append('file', file);
+-
+-    const response = await apiClient.post('/upload', formData, {
+-      headers: {
+-        'Content-Type': 'multipart/form-data',
+-      },
+-    });
+-    return response.data;
++    try {
++      const formData = new FormData();
++      formData.append('file', file);
++
++      const response = await apiClient.post('/upload', formData, {
++        headers: {
++          'Content-Type': 'multipart/form-data',
++        },
++      });
++      return response.data;
++    } catch (error) {
++      throw new Error(getErrorMessage(error, 'Failed to upload document.'));
++    }
+   },
+ 
+   // Query document
+   queryDocument: async (documentId, query) => {
+-    const response = await apiClient.post('/query', {
+-      document_id: documentId,
+-      query: query,
+-    });
+-    return response.data;
++    try {
++      const response = await apiClient.post('/query', {
++        document_id: documentId,
++        query: query.trim(),
++      });
++      return response.data;
++    } catch (error) {
++      throw new Error(getErrorMessage(error, 'Failed to query document.'));
++    }
+   },
+ 
+   // List documents
+   listDocuments: async () => {
+-    const response = await apiClient.get('/documents');
+-    return response.data;
++    try {
++      const response = await apiClient.get('/documents');
++      return response.data;
++    } catch (error) {
++      throw new Error(getErrorMessage(error, 'Failed to list documents.'));
++    }
+   },
+ };
+ 
+ export default api;

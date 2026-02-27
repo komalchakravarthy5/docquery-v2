@@ -60,3 +60,7 @@ models/
 # Logs
 *.log
 logs/
+
+# Keep backend API schema models tracked
+!backend/app/models/
+!backend/app/models/*.py

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Message from './Message';
+import { api } from '../services/api';
 import './ChatInterface.css';
 
 const ChatInterface = ({ documentId, documentName }) => {
@@ -17,23 +18,22 @@ const ChatInterface = ({ documentId, documentName }) => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput || isLoading) return;
 
     const userMessage = {
       id: Date.now(),
       type: 'user',
-      content: inputValue,
+      content: trimmedInput,
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Import API dynamically to avoid circular dependencies
-      const { api } = await import('../services/api');
-      const response = await api.queryDocument(documentId, inputValue);
+      const response = await api.queryDocument(documentId, trimmedInput);
 
       const botMessage = {
         id: Date.now() + 1,
@@ -43,17 +43,17 @@ const ChatInterface = ({ documentId, documentName }) => {
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, botMessage]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       console.error('Error querying document:', error);
       const errorMessage = {
         id: Date.now() + 1,
         type: 'bot',
-        content: 'Sorry, I encountered an error processing your question. Please try again.',
+        content: error.message || 'Sorry, I encountered an error processing your question. Please try again.',
         timestamp: new Date(),
         isError: true,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -88,17 +88,17 @@ const ChatInterface = ({ documentId, documentName }) => {
             <p>Ask questions about your document and get citation-backed answers</p>
             <div className="example-questions">
               <p className="example-label">Try asking:</p>
-              <button className="example-btn" onClick={() => setInputValue("What is the main topic of this document?")}>
+              <button className="example-btn" onClick={() => setInputValue('What is the main topic of this document?')}>
                 "What is the main topic of this document?"
               </button>
-              <button className="example-btn" onClick={() => setInputValue("Summarize the key findings")}>
+              <button className="example-btn" onClick={() => setInputValue('Summarize the key findings')}>
                 "Summarize the key findings"
               </button>
             </div>
           </div>
         ) : (
           <>
-            {messages.map(message => (
+            {messages.map((message) => (
               <Message key={message.id} message={message} />
             ))}
             {isLoading && (
@@ -122,7 +122,7 @@ const ChatInterface = ({ documentId, documentName }) => {
             placeholder="Ask a question about your document..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             disabled={isLoading}
             rows={1}
           />

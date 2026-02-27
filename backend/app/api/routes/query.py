@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo
+from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo, DocumentListResponse
 from app.services.rag_service import rag_service
 from app.services.database import database_service
 
@@ -36,7 +36,7 @@ async def query_document(request: QueryRequest):
         )
 
 
-@router.get("/documents")
+@router.get("/documents", response_model=DocumentListResponse)
 async def list_documents():
     """List all uploaded documents"""
     try:
