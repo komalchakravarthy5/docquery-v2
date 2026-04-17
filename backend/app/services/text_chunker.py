@@ -23,12 +23,13 @@ class TextChunker:
         self.chunk_size = chunk_size or settings.chunk_size
         self.chunk_overlap = chunk_overlap or settings.chunk_overlap
     
-    def chunk_pages(self, pages_data: List[Dict[str, any]]) -> List[Dict[str, any]]:
+    def chunk_pages(self, pages_data: List[Dict[str, any]], dynamic: bool = True) -> List[Dict[str, any]]:
         """
         Chunk text from multiple pages while preserving page numbers.
         
         Args:
             pages_data: List of page dictionaries with 'page_number' and 'text'
+            dynamic: If True, dynamically scale chunk parameters based on document length.
             
         Returns:
             List of chunk dictionaries with metadata
@@ -43,6 +44,22 @@ class TextChunker:
         all_chunks = []
         chunk_id = 0
         
+        # Calculate dynamic chunk size
+        current_size = self.chunk_size
+        current_overlap = self.chunk_overlap
+        
+        if dynamic:
+            total_chars = sum(len(page.get("text", "")) for page in pages_data)
+            if total_chars < 5000:
+                current_size = 1000
+                current_overlap = 200
+            elif total_chars < 50000:
+                current_size = 750
+                current_overlap = 100
+            else:
+                current_size = 500
+                current_overlap = 50
+        
         for page_data in pages_data:
             page_number = page_data["page_number"]
             text = page_data["text"]
@@ -52,13 +69,13 @@ class TextChunker:
                 continue
             
             # Create chunks for this page
-            page_chunks = self._chunk_text(text, page_number, chunk_id)
+            page_chunks = self._chunk_text(text, page_number, chunk_id, current_size, current_overlap)
             all_chunks.extend(page_chunks)
             chunk_id += len(page_chunks)
         
         return all_chunks
     
-    def _chunk_text(self, text: str, page_number: int, start_chunk_id: int) -> List[Dict[str, any]]:
+    def _chunk_text(self, text: str, page_number: int, start_chunk_id: int, size: int, overlap: int) -> List[Dict[str, any]]:
         """
         Split text into overlapping chunks using sliding window.
         
@@ -66,6 +83,8 @@ class TextChunker:
             text: Text to chunk
             page_number: Page number this text came from
             start_chunk_id: Starting ID for chunks
+            size: Chunk size in characters
+            overlap: Chunk overlap in characters
             
         Returns:
             List of chunk dictionaries
@@ -74,7 +93,7 @@ class TextChunker:
         text_length = len(text)
         
         # If text is shorter than chunk size, return as single chunk
-        if text_length <= self.chunk_size:
+        if text_length <= size:
             chunks.append({
                 "chunk_id": start_chunk_id,
                 "text": text.strip(),
@@ -90,7 +109,7 @@ class TextChunker:
         
         while start < text_length:
             # Calculate end position
-            end = min(start + self.chunk_size, text_length)
+            end = min(start + size, text_length)
             
             # Extract chunk
             chunk_text = text[start:end].strip()
@@ -107,7 +126,7 @@ class TextChunker:
                 chunk_id += 1
             
             # Move window forward (with overlap)
-            start += (self.chunk_size - self.chunk_overlap)
+            start += (size - overlap)
             
             # Prevent infinite loop
             if start >= text_length:
