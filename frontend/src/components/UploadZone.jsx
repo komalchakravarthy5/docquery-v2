@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import './UploadZone.css';
 
+const SUPPORTED_EXTS = ['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.xls'];
+
 const UploadZone = ({ onUpload, isUploading }) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -23,30 +25,40 @@ const UploadZone = ({ onUpload, isUploading }) => {
     setIsDragging(false);
   }, []);
 
+  const processFiles = (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    
+    // Convert to array and grab up to 3 files max
+    const filesArray = Array.from(fileList).slice(0, 3);
+    
+    // Validate types natively
+    const validFiles = filesArray.filter(f => {
+      return SUPPORTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext));
+    });
+
+    if (validFiles.length === 0) {
+      alert(`Please upload supported document formats: ${SUPPORTED_EXTS.join(', ')}`);
+      return;
+    }
+
+    if (validFiles.length !== filesArray.length) {
+      alert(`Some files were skipped. Supported formats: ${SUPPORTED_EXTS.join(', ')}`);
+    }
+
+    onUpload(validFiles);
+  };
+
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (file.type === 'application/pdf') {
-        onUpload(file);
-      } else {
-        alert('Please upload a PDF file');
-      }
-    }
+    processFiles(e.dataTransfer.files);
   }, [onUpload]);
 
   const handleFileInput = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      if (file.type === 'application/pdf') {
-        onUpload(file);
-      } else {
-        alert('Please upload a PDF file');
-      }
-    }
+    processFiles(e.target.files);
+    // Reset file input so same file can be selected again if needed
+    e.target.value = null;
   };
 
   return (
@@ -60,7 +72,8 @@ const UploadZone = ({ onUpload, isUploading }) => {
       <input
         type="file"
         id="file-upload"
-        accept=".pdf"
+        accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv"
+        multiple
         onChange={handleFileInput}
         disabled={isUploading}
         style={{ display: 'none' }}
@@ -68,16 +81,16 @@ const UploadZone = ({ onUpload, isUploading }) => {
 
       <div className="upload-content">
         <div className="upload-icon">📄</div>
-        <h3>{isUploading ? 'Processing...' : 'Upload Your Document'}</h3>
+        <h3>{isUploading ? 'Processing Workspace...' : 'Upload Documents'}</h3>
         <p className="upload-text">
           {isUploading
-            ? 'Extracting text and generating embeddings...'
-            : 'Drag and drop your PDF here or click to browse'}
+            ? 'Extracting text and generating multi-document workspace...'
+            : 'Drag and drop up to 3 documents, or click to browse'}
         </p>
-        <label htmlFor="file-upload" className="btn btn-primary">
-          {isUploading ? 'Uploading...' : 'Choose PDF File'}
+        <label htmlFor="file-upload" className="btn btn-primary" style={{ cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+          {isUploading ? 'Uploading...' : 'Choose Files'}
         </label>
-        <p className="upload-hint">Supports PDF files up to 50MB</p>
+        <p className="upload-hint">Supports PDF, DOCX, PPTX, Excel, and CSV (Up to 3 combined)</p>
       </div>
     </div>
   );

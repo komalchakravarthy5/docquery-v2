@@ -24,11 +24,13 @@ export const api = {
     return response.data;
   },
 
-  // Upload PDF
-  uploadDocument: async (file) => {
+  // Upload Documents
+  uploadDocument: async (files) => {
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
 
       const response = await apiClient.post('/upload', formData, {
         headers: {

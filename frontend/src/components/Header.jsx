@@ -6,13 +6,15 @@ const Header = () => {
     <header className="header">
       <div className="container">
         <div className="header-content">
-          <div className="logo">
+          <a href="#home" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className="logo-icon">📄</div>
             <h2>DocQuery</h2>
-          </div>
+          </a>
           <nav className="nav">
-            <a href="#features" className="nav-link">Features</a>
-            <a href="#about" className="nav-link">About</a>
+            <a href="#about" className="nav-link" onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
+            }}>About</a>
           </nav>
         </div>
       </div>
