@@ -19,6 +19,83 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-md);
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-controls label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.filter-controls select {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  max-width: 220px;
+}
+
+.metrics-panel {
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(20, 20, 22, 0.85);
+  padding: var(--spacing-md);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metric-card span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.trend-chart {
+  grid-column: 1 / -1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+}
+
+.trend-chart p {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.trend-bars {
+  height: 84px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.trend-bar {
+  width: 10px;
+  background: linear-gradient(to top, #9d5dff, #c1ff72);
+  border-radius: 4px 4px 0 0;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 
 .doc-indicator {

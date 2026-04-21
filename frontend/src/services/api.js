@@ -44,15 +44,25 @@ export const api = {
   },
 
   // Query document
-  queryDocument: async (documentId, query) => {
+  queryDocument: async (documentId, query, sourceFilter = null) => {
     try {
       const response = await apiClient.post('/query', {
         document_id: documentId,
         query: query.trim(),
+        source_filter: sourceFilter || null,
       });
       return response.data;
     } catch (error) {
       throw new Error(getErrorMessage(error, 'Failed to query document.'));
+    }
+  },
+
+  getDocumentMetrics: async (documentId) => {
+    try {
+      const response = await apiClient.get(`/metrics/${documentId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to load metrics.'));
     }
   },
 

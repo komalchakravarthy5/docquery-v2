@@ -81,8 +81,9 @@ class GeminiService:
 
         for chunk in chunks:
             text = chunk.get("text", "")
-            page_num = chunk.get("page_number", "?")
-            chunk_text = f"[Page {page_num}] {text}"
+            source_file = chunk.get("source_file", "Document")
+            source_page_number = chunk.get("source_page_number", chunk.get("page_number", "?"))
+            chunk_text = f"[Source: {source_file} | Page {source_page_number}] {text}"
             chunk_length = len(chunk_text)
 
             if current_length + chunk_length > max_length:
@@ -95,7 +96,7 @@ class GeminiService:
 
     def _create_rag_prompt(self, query: str, context: str) -> str:
         """Create RAG prompt template."""
-        return f"""You are a helpful AI assistant answering questions about a document. Your task is to provide accurate, clear answers based ONLY on the provided context.
+        return f"""You are a helpful AI assistant answering questions about one or more uploaded documents. Your task is to provide accurate, clear answers based ONLY on the provided context.
 
 Context from the document:
 {context}
@@ -104,10 +105,11 @@ Question: {query}
 
 Instructions:
 1. Answer the question using ONLY the information from the context above.
-2. If the answer is not in the context, clearly state: I cannot find this information in the document.
-3. Keep the answer concise, factual, and directly useful.
-4. Mention page number(s) when citing facts.
-5. Do not hallucinate, infer, or fabricate.
+2. If asked for a summary, provide a structured summary of key findings/themes from the retrieved context, using bullet points.
+3. If findings are incomplete in context, mention what is present first, then state what is missing.
+4. Mention source file name(s) and page number(s) when citing facts.
+5. If the answer is not in the context at all, clearly state: I cannot find this information in the document.
+6. Do not hallucinate, infer, or fabricate.
 
 Answer:"""
 

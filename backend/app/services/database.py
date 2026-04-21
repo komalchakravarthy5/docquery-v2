@@ -43,10 +43,21 @@ class DatabaseService:
                     document_id TEXT NOT NULL,
                     chunk_index INTEGER NOT NULL,
                     page_number INTEGER NOT NULL,
+                    source_file TEXT,
+                    source_page_number INTEGER,
                     text TEXT NOT NULL,
                     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
                 )
             """)
+
+            # Backward-compatible lightweight migration for existing databases
+            async with db.execute("PRAGMA table_info(chunks)") as cursor:
+                columns = {row[1] for row in await cursor.fetchall()}
+
+            if "source_file" not in columns:
+                await db.execute("ALTER TABLE chunks ADD COLUMN source_file TEXT")
+            if "source_page_number" not in columns:
+                await db.execute("ALTER TABLE chunks ADD COLUMN source_page_number INTEGER")
             
             # Create index for faster queries
             await db.execute("""
@@ -153,13 +164,27 @@ class DatabaseService:
         async with aiosqlite.connect(self.db_path) as db:
             # Prepare data for batch insert
             chunk_data = [
-                (document_id, chunk["chunk_id"], chunk["page_number"], chunk["text"])
+                (
+                    document_id,
+                    chunk["chunk_id"],
+                    chunk["page_number"],
+                    chunk.get("source_file"),
+                    chunk.get("source_page_number", chunk["page_number"]),
+                    chunk["text"],
+                )
                 for chunk in chunks
             ]
             
             await db.executemany("""
-                INSERT INTO chunks (document_id, chunk_index, page_number, text)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO chunks (
+                    document_id,
+                    chunk_index,
+                    page_number,
+                    source_file,
+                    source_page_number,
+                    text
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
             """, chunk_data)
             
             await db.commit()

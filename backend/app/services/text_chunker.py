@@ -63,19 +63,38 @@ class TextChunker:
         for page_data in pages_data:
             page_number = page_data["page_number"]
             text = page_data["text"]
+            source_file = page_data.get("source_file")
+            source_page_number = page_data.get("source_page_number", page_number)
             
             # Skip empty pages
             if not text or len(text.strip()) == 0:
                 continue
             
             # Create chunks for this page
-            page_chunks = self._chunk_text(text, page_number, chunk_id, current_size, current_overlap)
+            page_chunks = self._chunk_text(
+                text,
+                page_number,
+                chunk_id,
+                current_size,
+                current_overlap,
+                source_file=source_file,
+                source_page_number=source_page_number,
+            )
             all_chunks.extend(page_chunks)
             chunk_id += len(page_chunks)
         
         return all_chunks
     
-    def _chunk_text(self, text: str, page_number: int, start_chunk_id: int, size: int, overlap: int) -> List[Dict[str, any]]:
+    def _chunk_text(
+        self,
+        text: str,
+        page_number: int,
+        start_chunk_id: int,
+        size: int,
+        overlap: int,
+        source_file: str = None,
+        source_page_number: int = None,
+    ) -> List[Dict[str, any]]:
         """
         Split text into overlapping chunks using sliding window.
         
@@ -98,6 +117,8 @@ class TextChunker:
                 "chunk_id": start_chunk_id,
                 "text": text.strip(),
                 "page_number": page_number,
+                "source_file": source_file,
+                "source_page_number": source_page_number if source_page_number is not None else page_number,
                 "start_char": 0,
                 "end_char": text_length
             })
@@ -120,6 +141,8 @@ class TextChunker:
                     "chunk_id": chunk_id,
                     "text": chunk_text,
                     "page_number": page_number,
+                    "source_file": source_file,
+                    "source_page_number": source_page_number if source_page_number is not None else page_number,
                     "start_char": start,
                     "end_char": end
                 })
