@@ -1,6 +1,6 @@
 """API request and response schemas."""
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -21,6 +21,7 @@ class DocumentUploadResponse(BaseModel):
 class QueryRequest(BaseModel):
     document_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=2, max_length=2000)
+    source_filter: Optional[str] = None
 
 
 class Citation(BaseModel):
@@ -35,6 +36,24 @@ class QueryResponse(BaseModel):
     citations: List[Citation]
     document_id: str
     query: str
+    latency_ms: Optional[float] = None
+
+
+class MetricsTrendPoint(BaseModel):
+    latency_ms: float
+    avg_relevance_score: float
+    num_citations: int
+    answer_found: bool
+
+
+class DocumentMetricsResponse(BaseModel):
+    document_id: str
+    total_queries: int
+    avg_latency_ms: float
+    avg_relevance_score: float
+    avg_citations: float
+    query_success_rate: float
+    trend: List[MetricsTrendPoint]
 
 
 class DocumentInfo(BaseModel):

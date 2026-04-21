@@ -35,7 +35,7 @@ async def upload_document(files: List[UploadFile] = File(...)):
         
         for file in files:
             file_content = await file.read()
-            # We save it temporarily as workspace_id_filename
+            # Save each file with a unique name to avoid collisions (e.g., multiple PDFs)
             file_path = storage_service.save_uploaded_file(
                 file_content=file_content,
                 document_id=workspace_id,
@@ -45,9 +45,10 @@ async def upload_document(files: List[UploadFile] = File(...)):
             # Extract text using our dynamic parser
             pages_data = document_processor.extract_text(file_path)
             
-            # Prefix page data with filename to help LLM distinguish files in prompt
             for page in pages_data:
-                page["text"] = f"[Source: {file.filename}] {page['text']}"
+                page["source_file"] = file.filename
+                page["source_page_number"] = page["page_number"]
+                page["text"] = f"[Source: {file.filename} | Page {page['page_number']}]\n{page['text']}"
                 
             all_pages_data.extend(pages_data)
             

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo, DocumentListResponse
+from app.models.schemas import QueryRequest, QueryResponse, DocumentInfo, DocumentListResponse, DocumentMetricsResponse
 from app.services.rag_service import rag_service
 from app.services.database import database_service
+from app.services.metrics_service import metrics_service
 
 router = APIRouter()
 
@@ -20,7 +21,8 @@ async def query_document(request: QueryRequest):
         # Execute RAG pipeline
         response = await rag_service.query_document(
             document_id=request.document_id,
-            query=request.query
+            query=request.query,
+            source_filter=request.source_filter,
         )
         
         return response
@@ -65,3 +67,18 @@ async def list_documents():
             status_code=500,
             detail=f"Error retrieving documents: {str(e)}"
         )
+
+
+@router.get("/metrics/{document_id}", response_model=DocumentMetricsResponse)
+async def get_document_metrics(document_id: str):
+    """Get query efficiency metrics for a workspace."""
+    try:
+        await database_service.initialize()
+        doc = await database_service.get_document(document_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return metrics_service.get_document_metrics(document_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving metrics: {str(e)}")
