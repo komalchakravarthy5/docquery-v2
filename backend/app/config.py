@@ -17,7 +17,12 @@ class Settings(BaseSettings):
     gemini_temperature: float = 0.2  # Low temperature for factual RAG responses
     
     # CORS
-    allowed_origins: str = "http://localhost:5173,http://localhost:3000"
+    allowed_origins: str = (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000"
+    )
     
     @property
     def cors_origins(self) -> list[str]:
