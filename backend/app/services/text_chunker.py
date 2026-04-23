@@ -5,6 +5,7 @@ Splits extracted text into overlapping chunks for embedding generation.
 
 from typing import List, Dict
 from app.config import get_settings
+import re
 
 settings = get_settings()
 
@@ -63,19 +64,38 @@ class TextChunker:
         for page_data in pages_data:
             page_number = page_data["page_number"]
             text = page_data["text"]
+            source_file = page_data.get("source_file")
+            source_page_number = page_data.get("source_page_number", page_number)
             
             # Skip empty pages
             if not text or len(text.strip()) == 0:
                 continue
             
             # Create chunks for this page
-            page_chunks = self._chunk_text(text, page_number, chunk_id, current_size, current_overlap)
+            page_chunks = self._chunk_text(
+                text,
+                page_number,
+                chunk_id,
+                current_size,
+                current_overlap,
+                source_file=source_file,
+                source_page_number=source_page_number,
+            )
             all_chunks.extend(page_chunks)
             chunk_id += len(page_chunks)
         
         return all_chunks
     
-    def _chunk_text(self, text: str, page_number: int, start_chunk_id: int, size: int, overlap: int) -> List[Dict[str, any]]:
+    def _chunk_text(
+        self,
+        text: str,
+        page_number: int,
+        start_chunk_id: int,
+        size: int,
+        overlap: int,
+        source_file: str = None,
+        source_page_number: int = None,
+    ) -> List[Dict[str, any]]:
         """
         Split text into overlapping chunks using sliding window.
         
@@ -90,6 +110,9 @@ class TextChunker:
             List of chunk dictionaries
         """
         chunks = []
+        # Structure-aware split (headings/paragraph blocks) before sliding windows.
+        section_candidates = self._split_sections(text)
+        text = "\n\n".join(section_candidates)
         text_length = len(text)
         
         # If text is shorter than chunk size, return as single chunk
@@ -98,6 +121,8 @@ class TextChunker:
                 "chunk_id": start_chunk_id,
                 "text": text.strip(),
                 "page_number": page_number,
+                "source_file": source_file,
+                "source_page_number": source_page_number if source_page_number is not None else page_number,
                 "start_char": 0,
                 "end_char": text_length
             })
@@ -120,6 +145,8 @@ class TextChunker:
                     "chunk_id": chunk_id,
                     "text": chunk_text,
                     "page_number": page_number,
+                    "source_file": source_file,
+                    "source_page_number": source_page_number if source_page_number is not None else page_number,
                     "start_char": start,
                     "end_char": end
                 })
@@ -133,6 +160,32 @@ class TextChunker:
                 break
         
         return chunks
+
+    def _split_sections(self, text: str) -> List[str]:
+        """Split text into rough sections by heading-like patterns."""
+        if not text:
+            return []
+
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if not lines:
+            return [text]
+
+        sections = []
+        current = []
+        heading_pattern = re.compile(r"^(\d+(\.\d+)*)\s+.+|^[A-Z][A-Za-z\s]{2,40}$")
+
+        for line in lines:
+            is_heading = bool(heading_pattern.match(line)) and len(line.split()) <= 12
+            if is_heading and current:
+                sections.append("\n".join(current))
+                current = [line]
+            else:
+                current.append(line)
+
+        if current:
+            sections.append("\n".join(current))
+
+        return sections if sections else [text]
     
     def get_chunk_stats(self, chunks: List[Dict[str, any]]) -> Dict[str, any]:
         """

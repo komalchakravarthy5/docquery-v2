@@ -1,0 +1,9 @@
+[
+  {
+    "question": "What dataset did the paper use?",
+    "ground_truth_answer": "The study uses the XYZ dataset.",
+    "ground_truth_sources": ["paper_a.pdf"],
+    "retrieved_sources": ["paper_a.pdf"],
+    "predicted_answer": "The paper reports experiments on the XYZ dataset."
+  }
+]

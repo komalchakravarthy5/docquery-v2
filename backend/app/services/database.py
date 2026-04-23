@@ -43,15 +43,46 @@ class DatabaseService:
                     document_id TEXT NOT NULL,
                     chunk_index INTEGER NOT NULL,
                     page_number INTEGER NOT NULL,
+                    source_file TEXT,
+                    source_page_number INTEGER,
                     text TEXT NOT NULL,
                     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
                 )
             """)
+
+            # Backward-compatible lightweight migration for existing databases
+            async with db.execute("PRAGMA table_info(chunks)") as cursor:
+                columns = {row[1] for row in await cursor.fetchall()}
+
+            if "source_file" not in columns:
+                await db.execute("ALTER TABLE chunks ADD COLUMN source_file TEXT")
+            if "source_page_number" not in columns:
+                await db.execute("ALTER TABLE chunks ADD COLUMN source_page_number INTEGER")
             
             # Create index for faster queries
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_chunks_document_id 
                 ON chunks(document_id)
+            """)
+
+            # Query metrics persistence for longitudinal benchmarking
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS query_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_id TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    latency_ms REAL NOT NULL,
+                    avg_relevance_score REAL NOT NULL,
+                    num_citations INTEGER NOT NULL,
+                    answer_found INTEGER NOT NULL,
+                    grounding_score REAL NOT NULL,
+                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_query_metrics_document_id
+                ON query_metrics(document_id)
             """)
             
             await db.commit()
@@ -153,13 +184,27 @@ class DatabaseService:
         async with aiosqlite.connect(self.db_path) as db:
             # Prepare data for batch insert
             chunk_data = [
-                (document_id, chunk["chunk_id"], chunk["page_number"], chunk["text"])
+                (
+                    document_id,
+                    chunk["chunk_id"],
+                    chunk["page_number"],
+                    chunk.get("source_file"),
+                    chunk.get("source_page_number", chunk["page_number"]),
+                    chunk["text"],
+                )
                 for chunk in chunks
             ]
             
             await db.executemany("""
-                INSERT INTO chunks (document_id, chunk_index, page_number, text)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO chunks (
+                    document_id,
+                    chunk_index,
+                    page_number,
+                    source_file,
+                    source_page_number,
+                    text
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
             """, chunk_data)
             
             await db.commit()
@@ -227,6 +272,55 @@ class DatabaseService:
         """
         doc = await self.get_document(document_id)
         return doc is not None
+
+    async def insert_query_metric(
+        self,
+        document_id: str,
+        latency_ms: float,
+        avg_relevance_score: float,
+        num_citations: int,
+        answer_found: bool,
+        grounding_score: float,
+    ) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO query_metrics (
+                    document_id,
+                    latency_ms,
+                    avg_relevance_score,
+                    num_citations,
+                    answer_found,
+                    grounding_score
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    document_id,
+                    latency_ms,
+                    avg_relevance_score,
+                    num_citations,
+                    1 if answer_found else 0,
+                    grounding_score,
+                ),
+            )
+            await db.commit()
+        return True
+
+    async def get_query_metrics(self, document_id: str, limit: int = 100) -> List[Dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT * FROM query_metrics
+                WHERE document_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (document_id, limit),
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
 
 # Singleton instance

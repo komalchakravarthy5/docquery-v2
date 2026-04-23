@@ -4,9 +4,10 @@ Handles file system operations for uploaded PDFs and indices.
 """
 
 import os
-import shutil
 from pathlib import Path
 from typing import Optional
+import re
+import uuid
 from app.config import get_settings
 
 settings = get_settings()
@@ -36,9 +37,11 @@ class StorageService:
         Returns:
             Path to saved file
         """
-        # Create filename with document ID to ensure uniqueness
+        # Create unique filename while retaining original file hint for debugging
         file_extension = Path(filename).suffix
-        safe_filename = f"{document_id}{file_extension}"
+        original_stem = Path(filename).stem
+        normalized_stem = re.sub(r"[^a-zA-Z0-9_-]+", "_", original_stem).strip("_") or "document"
+        safe_filename = f"{document_id}_{normalized_stem}_{uuid.uuid4().hex[:8]}{file_extension}"
         file_path = self.upload_dir / safe_filename
         
         # Write file to disk

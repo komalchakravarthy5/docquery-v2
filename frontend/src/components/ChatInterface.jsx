@@ -7,15 +7,35 @@ const ChatInterface = ({ documentId, documentName }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState('ALL');
+  const [metrics, setMetrics] = useState(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+
+  const sourceOptions = ['ALL', ...documentName.split(' | ').map((name) => name.trim())];
+
+  const refreshMetrics = async () => {
+    try {
+      const data = await api.getDocumentMetrics(documentId);
+      setMetrics(data);
+    } catch (error) {
+      console.error('Error loading metrics:', error);
+    }
+  };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    refreshMetrics();
+  }, [documentId]);
 
   const handleSend = async () => {
     const trimmedInput = inputValue.trim();
@@ -33,7 +53,11 @@ const ChatInterface = ({ documentId, documentName }) => {
     setIsLoading(true);
 
     try {
-      const response = await api.queryDocument(documentId, trimmedInput);
+      const response = await api.queryDocument(
+        documentId,
+        trimmedInput,
+        sourceFilter === 'ALL' ? null : sourceFilter,
+      );
 
       const botMessage = {
         id: Date.now() + 1,
@@ -44,6 +68,7 @@ const ChatInterface = ({ documentId, documentName }) => {
       };
 
       setMessages((prev) => [...prev, botMessage]);
+      refreshMetrics();
     } catch (error) {
       console.error('Error querying document:', error);
       const errorMessage = {
@@ -77,10 +102,42 @@ const ChatInterface = ({ documentId, documentName }) => {
               <p className="doc-name">{documentName}</p>
             </div>
           </div>
+          <div className="filter-controls">
+            <label htmlFor="source-filter">Source</label>
+            <select
+              id="source-filter"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              disabled={isLoading}
+            >
+              {sourceOptions.map((option) => (
+                <option value={option} key={option}>{option}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="messages-container">
+      {metrics && (
+        <div className="metrics-panel">
+          <div className="metric-card"><span>Avg Latency</span><strong>{metrics.avg_latency_ms} ms</strong></div>
+          <div className="metric-card"><span>Avg Relevance</span><strong>{(metrics.avg_relevance_score * 100).toFixed(1)}%</strong></div>
+          <div className="metric-card"><span>Success Rate</span><strong>{(metrics.query_success_rate * 100).toFixed(1)}%</strong></div>
+          <div className="metric-card"><span>Grounding</span><strong>{((metrics.avg_grounding_score || 0) * 100).toFixed(1)}%</strong></div>
+          <div className="metric-card"><span>Total Queries</span><strong>{metrics.total_queries}</strong></div>
+          <div className="trend-chart">
+            <p>Latency Trend (recent queries)</p>
+            <div className="trend-bars">
+              {metrics.trend.length === 0 ? <span className="muted">No trend yet</span> : metrics.trend.map((point, idx) => {
+                const height = Math.max(8, Math.min(80, point.latency_ms / 10));
+                return <div key={idx} className="trend-bar" title={`${point.latency_ms} ms`} style={{ height: `${height}px` }} />;
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="messages-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">💬</div>
