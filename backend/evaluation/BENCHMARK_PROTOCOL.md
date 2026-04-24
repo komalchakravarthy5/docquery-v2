@@ -38,6 +38,38 @@ Each sample should include:
    - semantic retrieval only
    - hybrid retrieval enabled
 
+## Execution commands
+
+1. Generate predictions by actually running model/API:
+   ```bash
+   python backend/evaluation/run_rag_benchmark.py \
+     --dataset backend/evaluation/benchmark_dataset_template.json \
+     --api http://127.0.0.1:8000/api \
+     --out backend/evaluation/predictions.json
+   ```
+
+2. Compute retrieval/answer metrics:
+   ```bash
+   python backend/evaluation/rag_quality_metrics.py \
+     --pred backend/evaluation/predictions.json \
+     --out backend/evaluation/metrics_report.json
+   ```
+
+3. Compute judge metrics (faithfulness/relevance):
+   ```bash
+   python backend/evaluation/rag_evaluator.py \
+     --input backend/evaluation/predictions.json \
+     --out backend/evaluation/judge_report.json
+   ```
+
+4. Generate report/PPT graphs:
+   ```bash
+   python backend/evaluation/plot_benchmark.py \
+     --metrics backend/evaluation/metrics_report.json \
+     --judge backend/evaluation/judge_report.json \
+     --outdir backend/evaluation/plots
+   ```
+
 ## Reporting template
 - Table 1: Retrieval metrics
 - Table 2: Answer quality metrics

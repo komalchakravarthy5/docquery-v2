@@ -75,7 +75,24 @@ class RAGService:
             raise ValueError(f"Document not found: {document_id}")
 
         num_chunks = int(doc.get("num_chunks", 0))
-        num_sources = max(1, len((doc.get("filename") or "").split(" | ")))
+        source_files = [s.strip() for s in (doc.get("filename") or "").split(" | ") if s.strip()]
+        num_sources = max(1, len(source_files))
+
+        # Natural-language source selector fallback for queries like "first/second document"
+        if not source_filter and source_files:
+            q_lower = query.lower()
+            ordinal_map = {
+                "first": 0,
+                "1st": 0,
+                "second": 1,
+                "2nd": 1,
+                "third": 2,
+                "3rd": 2,
+            }
+            for token, idx in ordinal_map.items():
+                if f"{token} document" in q_lower and idx < len(source_files):
+                    source_filter = source_files[idx]
+                    break
         if num_chunks <= 0:
             raise ValueError(f"No indexed chunks found for document: {document_id}")
 
@@ -159,7 +176,11 @@ class RAGService:
         sorted_chunks = [chunk for _, chunk in ranked[:adaptive_top_k]]
 
         if source_filter:
-            sorted_chunks = [chunk for chunk in sorted_chunks if chunk.get("source_file") == source_filter]
+            target = source_filter.strip().lower()
+            sorted_chunks = [
+                chunk for chunk in sorted_chunks
+                if (chunk.get("source_file") or "").strip().lower() == target
+            ]
 
         if not sorted_chunks:
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -233,6 +254,8 @@ class RAGService:
         citations = []
 
         for i, chunk in enumerate(chunks):
+            if len(citations) >= settings.max_citations:
+                break
             distance = float(distances[i]) if i < len(distances) else 10.0
             relevance_score = max(0.0, 1.0 - (distance / 10.0))
 

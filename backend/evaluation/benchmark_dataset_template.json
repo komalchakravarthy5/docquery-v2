@@ -1,6 +1,8 @@
 [
   {
+    "document_id": "replace-with-uploaded-document-id",
     "question": "What dataset did the paper use?",
+    "source_filter": null,
     "ground_truth_answer": "The study uses the XYZ dataset.",
     "ground_truth_sources": ["paper_a.pdf"],
     "retrieved_sources": ["paper_a.pdf"],

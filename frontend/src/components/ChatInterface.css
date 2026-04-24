@@ -1,8 +1,8 @@
 .chat-interface {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
-  min-height: 820px;
+  height: calc(100vh - 80px);
+  min-height: 960px;
   background: var(--gradient-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
