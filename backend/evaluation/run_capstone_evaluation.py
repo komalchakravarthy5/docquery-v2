@@ -22,9 +22,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import List
 
 import requests
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from backend.evaluation.rag_quality_metrics import evaluate as evaluate_quality
 from backend.evaluation.rag_evaluator import evaluate as evaluate_judge
@@ -74,12 +79,12 @@ def run_queries(api: str, document_id: str, dataset: List[dict]) -> List[dict]:
 
 
 def build_plots(metrics_path: Path, judge_path: Path | None, outdir: Path):
-    from backend.evaluation.plot_benchmark import main as _  # noqa: F401
     import subprocess
+    from backend.evaluation.plot_benchmark import main as _  # noqa: F401
 
     cmd = [
-        "python",
-        "backend/evaluation/plot_benchmark.py",
+        sys.executable,
+        str(REPO_ROOT / "backend/evaluation/plot_benchmark.py"),
         "--metrics",
         str(metrics_path),
         "--outdir",
@@ -91,11 +96,12 @@ def build_plots(metrics_path: Path, judge_path: Path | None, outdir: Path):
 
 
 def main():
+    base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
     parser.add_argument("--api", default="http://127.0.0.1:8000/api")
-    parser.add_argument("--dataset", default="backend/evaluation/capstone_eval_dataset.json")
+    parser.add_argument("--dataset", default=str(base_dir / "capstone_eval_dataset.json"))
     parser.add_argument("--files", nargs="+", required=True, help="Paths of files to upload for workspace")
-    parser.add_argument("--outdir", default="backend/evaluation/results")
+    parser.add_argument("--outdir", default=str(base_dir / "results"))
     parser.add_argument("--run-judge", action="store_true")
     args = parser.parse_args()
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from typing import List
+from typing import List, TypedDict
 from app.models.schemas import DocumentUploadResponse
 from app.services.document_processor import document_processor
 from app.services.text_chunker import text_chunker
@@ -18,35 +18,48 @@ settings = get_settings()
 SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.xlsx', '.csv', '.xls']
 
 
-async def _process_workspace(files: List[UploadFile], job_id: str = None) -> DocumentUploadResponse:
+class FilePayload(TypedDict):
+    filename: str
+    content: bytes
+
+
+async def _materialize_uploads(files: List[UploadFile]) -> List[FilePayload]:
+    payloads: List[FilePayload] = []
+    for file in files:
+        payloads.append({"filename": file.filename, "content": await file.read()})
+    return payloads
+
+
+async def _process_workspace(files: List[FilePayload], job_id: str = None) -> DocumentUploadResponse:
     if job_id:
         indexing_job_service.mark_running(job_id)
 
     workspace_id = str(uuid.uuid4())
     all_pages_data = []
-    combined_filename = " | ".join([f.filename for f in files])
+    combined_filename = " | ".join([f["filename"] for f in files])
 
-    async def _extract_file_pages(file: UploadFile):
-        file_content = await file.read()
+    async def _extract_file_pages(file: FilePayload):
+        file_content = file["content"]
+        filename = file["filename"]
         max_size_bytes = settings.max_file_size_mb * 1024 * 1024
         if len(file_content) > max_size_bytes:
             raise HTTPException(
                 status_code=400,
-                detail=f"File {file.filename} exceeds {settings.max_file_size_mb}MB limit",
+                detail=f"File {filename} exceeds {settings.max_file_size_mb}MB limit",
             )
 
         file_path = storage_service.save_uploaded_file(
             file_content=file_content,
             document_id=workspace_id,
-            filename=file.filename
+            filename=filename
         )
 
         pages_data = await asyncio.to_thread(document_processor.extract_text, file_path)
 
         for page in pages_data:
-            page["source_file"] = file.filename
+            page["source_file"] = filename
             page["source_page_number"] = page["page_number"]
-            page["text"] = f"[Source: {file.filename} | Page {page['page_number']}]\n{page['text']}"
+            page["text"] = f"[Source: {filename} | Page {page['page_number']}]\n{page['text']}"
 
         return pages_data
 
@@ -116,7 +129,8 @@ async def upload_document(files: List[UploadFile] = File(...)):
             raise HTTPException(status_code=400, detail=f"Unsupported file type. Supported: {', '.join(SUPPORTED_EXTENSIONS)}")
 
     try:
-        return await _process_workspace(files)
+        file_payloads = await _materialize_uploads(files)
+        return await _process_workspace(file_payloads)
     except HTTPException:
         raise
     except Exception as e:
@@ -133,12 +147,13 @@ async def upload_document_async(files: List[UploadFile] = File(...)):
         if not any(file.filename.lower().endswith(ext) for ext in SUPPORTED_EXTENSIONS):
             raise HTTPException(status_code=400, detail=f"Unsupported file type. Supported: {', '.join(SUPPORTED_EXTENSIONS)}")
 
+    file_payloads = await _materialize_uploads(files)
     job_id = str(uuid.uuid4())
-    indexing_job_service.create_job(job_id, " | ".join([f.filename for f in files]))
+    indexing_job_service.create_job(job_id, " | ".join([f["filename"] for f in file_payloads]))
 
     async def _run_job():
         try:
-            await _process_workspace(files, job_id=job_id)
+            await _process_workspace(file_payloads, job_id=job_id)
         except Exception as exc:
             indexing_job_service.mark_failed(job_id, str(exc))
 
