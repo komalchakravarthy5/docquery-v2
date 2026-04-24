@@ -1,0 +1,62 @@
+[
+  {
+    "question": "What is the main objective of the sales and wastage prediction paper?",
+    "source_filter": "Sales_wastage_pred__Copy__docquery.pdf",
+    "ground_truth_answer": "The paper proposes a predictive framework to jointly forecast sales and wastage to balance stockouts and overstocking.",
+    "ground_truth_sources": ["Sales_wastage_pred__Copy__docquery.pdf"]
+  },
+  {
+    "question": "Which machine learning model is highlighted for training in the sales and wastage document?",
+    "source_filter": "Sales_wastage_pred__Copy__docquery.pdf",
+    "ground_truth_answer": "The document highlights LightGBM for model training.",
+    "ground_truth_sources": ["Sales_wastage_pred__Copy__docquery.pdf"]
+  },
+  {
+    "question": "Summarize the key findings of setConf.pdf in 4 points.",
+    "source_filter": "setConf.pdf",
+    "ground_truth_answer": "The framework combines AST analysis and LLM prompting, improves correctness and efficiency, reduces cost, and supports scalable test generation.",
+    "ground_truth_sources": ["setConf.pdf"]
+  },
+  {
+    "question": "What does the consent form collect from students?",
+    "source_filter": "MCSE699J-Guide Consent form.pdf",
+    "ground_truth_answer": "It collects project category, title, student details, guide details, abstract, and signatures.",
+    "ground_truth_sources": ["MCSE699J-Guide Consent form.pdf"]
+  },
+  {
+    "question": "Compare the purpose of setConf.pdf and the consent form document.",
+    "source_filter": null,
+    "ground_truth_answer": "setConf describes a technical testing framework, while the consent form is an academic administrative document for dissertation/internship approval.",
+    "ground_truth_sources": ["setConf.pdf", "MCSE699J-Guide Consent form.pdf"]
+  },
+  {
+    "question": "What performance improvements are claimed in setConf.pdf?",
+    "source_filter": "setConf.pdf",
+    "ground_truth_answer": "The paper claims high syntactical correctness, significant cost reduction, and improvements in generation and system efficiency metrics.",
+    "ground_truth_sources": ["setConf.pdf"]
+  },
+  {
+    "question": "Which document is administrative rather than technical?",
+    "source_filter": null,
+    "ground_truth_answer": "MCSE699J-Guide Consent form.pdf is administrative.",
+    "ground_truth_sources": ["MCSE699J-Guide Consent form.pdf"]
+  },
+  {
+    "question": "List 3 themes from the sales_wastage document.",
+    "source_filter": "Sales_wastage_pred__Copy__docquery.pdf",
+    "ground_truth_answer": "Joint sales-waste prediction, sustainability-driven forecasting, and feature engineering/model interpretability.",
+    "ground_truth_sources": ["Sales_wastage_pred__Copy__docquery.pdf"]
+  },
+  {
+    "question": "How does setConf handle code understanding before test generation?",
+    "source_filter": "setConf.pdf",
+    "ground_truth_answer": "It uses static AST analysis to extract function signatures, metadata, and context before prompting the LLM.",
+    "ground_truth_sources": ["setConf.pdf"]
+  },
+  {
+    "question": "What signatures are required in the consent form?",
+    "source_filter": "MCSE699J-Guide Consent form.pdf",
+    "ground_truth_answer": "Student and internal guide signatures are required, along with verification sections.",
+    "ground_truth_sources": ["MCSE699J-Guide Consent form.pdf"]
+  }
+]

@@ -40,6 +40,16 @@ Each sample should include:
 
 ## Execution commands
 
+### One-command full pipeline (recommended)
+```bash
+python backend/evaluation/run_capstone_evaluation.py \
+  --api http://127.0.0.1:8000/api \
+  --dataset backend/evaluation/capstone_eval_dataset.json \
+  --files /path/file1.pdf /path/file2.pdf /path/file3.pdf \
+  --outdir backend/evaluation/results \
+  --run-judge
+```
+
 1. Generate predictions by actually running model/API:
    ```bash
    python backend/evaluation/run_rag_benchmark.py \

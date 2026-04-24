@@ -1,0 +1,84 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{DocQuery: Source-Aware Multi-Document RAG System with Evaluation Pipeline}
+\author{Komal Chakravarthy}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\chapter*{Abstract}
+This thesis presents DocQuery, a source-aware Retrieval-Augmented Generation (RAG) system for interactive querying of multiple uploaded documents. The system integrates multi-format ingestion, adaptive chunking, embedding-based retrieval, hybrid reranking, citation grounding, and runtime benchmarking.
+
+\chapter{Introduction}
+\section{Problem Statement}
+Document QA systems often provide generic answers with weak traceability, especially when multiple files are uploaded together.
+
+\section{Objectives}
+\begin{itemize}
+  \item Build a multi-document query assistant with citations.
+  \item Improve retrieval quality using hybrid semantic+lexical reranking.
+  \item Provide benchmarkable quality metrics and visual reports.
+\end{itemize}
+
+\chapter{Literature Review}
+Summarize key prior work on RAG, citation-aware QA, and LLM-based document assistants.
+
+\chapter{System Architecture}
+\section{Pipeline}
+Upload $\rightarrow$ parse $\rightarrow$ chunk $\rightarrow$ embed $\rightarrow$ FAISS retrieval $\rightarrow$ hybrid rerank $\rightarrow$ LLM answer $\rightarrow$ citations + metrics.
+
+\section{Technology Stack}
+FastAPI, React, Sentence-Transformers, FAISS, SQLite, Gemini API.
+
+\chapter{Implementation}
+\section{Backend Services}
+Discuss document processor, chunker, embedding service, FAISS service, RAG service, metrics and DB services.
+
+\section{Frontend}
+Discuss workspace upload, source filter, and efficiency graph panel.
+
+\chapter{Evaluation Methodology}
+\section{Dataset}
+Use \texttt{backend/evaluation/capstone\_eval\_dataset.json} with question-answer-source triples.
+
+\section{Metrics}
+\begin{itemize}
+  \item Retrieval Precision, Recall, F1
+  \item Answer F1 overlap
+  \item Faithfulness (LLM-as-judge)
+  \item Answer Relevance (LLM-as-judge)
+\end{itemize}
+
+\section{Reproducible Evaluation Commands}
+\begin{verbatim}
+python backend/evaluation/run_capstone_evaluation.py \
+  --api http://127.0.0.1:8000/api \
+  --dataset backend/evaluation/capstone_eval_dataset.json \
+  --files /path/file1.pdf /path/file2.pdf /path/file3.pdf \
+  --outdir backend/evaluation/results --run-judge
+\end{verbatim}
+
+\chapter{Results and Discussion}
+Insert generated charts:
+\begin{itemize}
+  \item retrieval\_answer\_metrics.png
+  \item judge\_metrics.png
+\end{itemize}
+Discuss strengths, failure cases, and per-file summarization behavior.
+
+\chapter{Conclusion and Future Work}
+Highlight contributions and possible future work (hybrid retrievers with BM25, reranker models, OCR pipeline, caching).
+
+\appendix
+\chapter{API Endpoints}
+List \texttt{/upload}, \texttt{/query}, \texttt{/metrics/{document\_id}}, async upload endpoints.
+
+\end{document}
