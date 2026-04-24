@@ -120,18 +120,23 @@ const ChatInterface = ({ documentId, documentName }) => {
 
       {metrics && (
         <div className="metrics-panel">
-          <div className="metric-card"><span>Avg Latency</span><strong>{metrics.avg_latency_ms} ms</strong></div>
-          <div className="metric-card"><span>Avg Relevance</span><strong>{(metrics.avg_relevance_score * 100).toFixed(1)}%</strong></div>
-          <div className="metric-card"><span>Success Rate</span><strong>{(metrics.query_success_rate * 100).toFixed(1)}%</strong></div>
-          <div className="metric-card"><span>Grounding</span><strong>{((metrics.avg_grounding_score || 0) * 100).toFixed(1)}%</strong></div>
           <div className="metric-card"><span>Total Queries</span><strong>{metrics.total_queries}</strong></div>
-          <div className="trend-chart">
-            <p>Latency Trend (recent queries)</p>
-            <div className="trend-bars">
-              {metrics.trend.length === 0 ? <span className="muted">No trend yet</span> : metrics.trend.map((point, idx) => {
-                const height = Math.max(8, Math.min(80, point.latency_ms / 10));
-                return <div key={idx} className="trend-bar" title={`${point.latency_ms} ms`} style={{ height: `${height}px` }} />;
-              })}
+          <div className="efficiency-graph">
+            <p>Model Efficiency Overview</p>
+            <div className="eff-row">
+              <label>Relevance</label>
+              <div className="eff-bar-wrap"><div className="eff-bar" style={{ width: `${(metrics.avg_relevance_score * 100).toFixed(1)}%` }} /></div>
+              <span>{(metrics.avg_relevance_score * 100).toFixed(1)}%</span>
+            </div>
+            <div className="eff-row">
+              <label>Success</label>
+              <div className="eff-bar-wrap"><div className="eff-bar" style={{ width: `${(metrics.query_success_rate * 100).toFixed(1)}%` }} /></div>
+              <span>{(metrics.query_success_rate * 100).toFixed(1)}%</span>
+            </div>
+            <div className="eff-row">
+              <label>Grounding</label>
+              <div className="eff-bar-wrap"><div className="eff-bar" style={{ width: `${((metrics.avg_grounding_score || 0) * 100).toFixed(1)}%` }} /></div>
+              <span>{((metrics.avg_grounding_score || 0) * 100).toFixed(1)}%</span>
             </div>
           </div>
         </div>

@@ -1,8 +1,8 @@
 .chat-interface {
   display: flex;
   flex-direction: column;
-  height: 86vh;
-  min-height: 760px;
+  height: calc(100vh - 120px);
+  min-height: 820px;
   background: var(--gradient-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
@@ -48,7 +48,7 @@
   background: rgba(20, 20, 22, 0.85);
   padding: var(--spacing-md);
   display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: 180px 1fr;
   gap: 0.75rem;
 }
 
@@ -73,6 +73,44 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 0.6rem;
+}
+
+.efficiency-graph {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+}
+
+.efficiency-graph p {
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.eff-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 60px;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.eff-row label {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.eff-bar-wrap {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.eff-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9d5dff, #c1ff72);
 }
 
 .trend-chart p {

@@ -5,6 +5,7 @@ Handles LLM-based answer generation using Google Gemini API.
 
 import google.generativeai as genai
 from typing import List, Dict
+import re
 from app.config import get_settings
 
 settings = get_settings()
@@ -65,6 +66,7 @@ class GeminiService:
                 )
             )
             answer = (response.text or "").strip()
+            answer = self._postprocess_answer(answer)
             return answer or "I cannot find this information in the document."
         except Exception as e:
             print(f"❌ Error generating answer: {str(e)}")
@@ -96,6 +98,14 @@ class GeminiService:
 
     def _create_rag_prompt(self, query: str, context: str) -> str:
         """Create RAG prompt template."""
+        source_files = set(re.findall(r"\[Source: (.*?) \| Page", context))
+        multi_file_instruction = ""
+        if len(source_files) > 1:
+            multi_file_instruction = (
+                "7. Since multiple source files are present, organize answer as: "
+                "File: <name> followed by key points for that file."
+            )
+
         return f"""You are a helpful AI assistant answering questions about one or more uploaded documents. Your task is to provide accurate, clear answers based ONLY on the provided context.
 
 Context from the document:
@@ -110,8 +120,21 @@ Instructions:
 4. Mention source file name(s) and page number(s) when citing facts.
 5. If the answer is not in the context at all, clearly state: I cannot find this information in the document.
 6. Do not hallucinate, infer, or fabricate.
+{multi_file_instruction}
+8. Avoid markdown formatting symbols like **, *, #. Use plain text and simple numbered points.
 
 Answer:"""
+
+    def _postprocess_answer(self, answer: str) -> str:
+        """Normalize model output into clean plain text for UI."""
+        if not answer:
+            return answer
+
+        cleaned = answer
+        cleaned = cleaned.replace("**", "")
+        cleaned = re.sub(r"^\s*\*\s+", "- ", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
 
     def is_initialized(self) -> bool:
         """Check if model is initialized"""
