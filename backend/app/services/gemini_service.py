@@ -44,11 +44,13 @@ class GeminiService:
         self,
         query: str,
         context_chunks: List[Dict[str, any]],
-        max_context_length: int = 4000
+        max_context_length: int = None
     ) -> str:
         """Generate answer using RAG approach."""
         if not context_chunks:
             return "I cannot find this information in the document."
+        if max_context_length is None:
+            max_context_length = settings.max_context_chars
 
         self._initialize_model()
 

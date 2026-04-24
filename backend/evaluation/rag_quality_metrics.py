@@ -43,10 +43,14 @@ def f1_overlap(reference: str, predicted: str) -> float:
 
 
 def source_metrics(gt_sources: List[str], ret_sources: List[str]) -> Dict[str, float]:
-    gt = set(gt_sources)
-    ret = set(ret_sources)
-    tp = len(gt & ret)
-    precision = tp / len(ret) if ret else 0.0
+    gt = {s.strip().lower() for s in gt_sources if s and s.strip()}
+    ret = [s.strip().lower() for s in ret_sources if s and s.strip()]
+    ret_set = set(ret)
+    k = len(ret)
+    hit_at_k = 1.0 if any(s in gt for s in ret) else 0.0
+    precision_at_k = (len([s for s in ret if s in gt]) / k) if k else 0.0
+    tp = len(gt & ret_set)
+    precision = tp / len(ret_set) if ret_set else 0.0
     recall = tp / len(gt) if gt else 0.0
     if precision + recall == 0:
         f1 = 0.0
@@ -56,6 +60,8 @@ def source_metrics(gt_sources: List[str], ret_sources: List[str]) -> Dict[str, f
         "precision": precision,
         "recall": recall,
         "f1": f1,
+        "precision_at_k": precision_at_k,
+        "hit_at_k": hit_at_k,
     }
 
 
@@ -64,6 +70,8 @@ def evaluate(samples: List[dict]) -> Dict[str, float]:
     retrieval_precision_scores = []
     retrieval_recall_scores = []
     retrieval_f1_scores = []
+    retrieval_precision_at_k_scores = []
+    retrieval_hit_at_k_scores = []
 
     for sample in samples:
         answer_f1_scores.append(
@@ -76,6 +84,8 @@ def evaluate(samples: List[dict]) -> Dict[str, float]:
         retrieval_precision_scores.append(m["precision"])
         retrieval_recall_scores.append(m["recall"])
         retrieval_f1_scores.append(m["f1"])
+        retrieval_precision_at_k_scores.append(m["precision_at_k"])
+        retrieval_hit_at_k_scores.append(m["hit_at_k"])
 
     return {
         "num_samples": len(samples),
@@ -83,6 +93,8 @@ def evaluate(samples: List[dict]) -> Dict[str, float]:
         "retrieval_precision": round(mean(retrieval_precision_scores), 4) if retrieval_precision_scores else 0.0,
         "retrieval_recall": round(mean(retrieval_recall_scores), 4) if retrieval_recall_scores else 0.0,
         "retrieval_f1": round(mean(retrieval_f1_scores), 4) if retrieval_f1_scores else 0.0,
+        "retrieval_precision_at_k": round(mean(retrieval_precision_at_k_scores), 4) if retrieval_precision_at_k_scores else 0.0,
+        "retrieval_hit_at_k": round(mean(retrieval_hit_at_k_scores), 4) if retrieval_hit_at_k_scores else 0.0,
     }
 
 

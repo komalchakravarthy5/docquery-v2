@@ -29,6 +29,12 @@ class RAGService:
         "compare",
         "overview",
     )
+    ANSWER_NOT_FOUND_PATTERNS = (
+        "i cannot find this information",
+        "not found in the provided context",
+        "not available in the provided context",
+        "insufficient information in the context",
+    )
 
     @staticmethod
     def _tokenize(text: str) -> set[str]:
@@ -53,6 +59,42 @@ class RAGService:
             return 0.0
         covered = len(answer_tokens & context_tokens)
         return round(covered / max(1, len(answer_tokens)), 3)
+
+    def _select_context_chunks(self, chunks: List[dict]) -> List[dict]:
+        selected: List[dict] = []
+        running_chars = 0
+
+        for chunk in chunks:
+            text = chunk.get("text", "")
+            if not text:
+                continue
+            next_size = len(text)
+            if selected and running_chars + next_size > settings.max_context_chars:
+                break
+            selected.append(chunk)
+            running_chars += next_size
+            if len(selected) >= settings.max_context_chunks:
+                break
+        return selected
+
+    def _is_answer_found(self, answer: str, citations: List[Citation], grounding_score: float) -> bool:
+        normalized = (answer or "").strip().lower()
+        if not normalized:
+            return False
+        if any(pattern in normalized for pattern in self.ANSWER_NOT_FOUND_PATTERNS):
+            return False
+        if not citations:
+            return False
+        return grounding_score >= 0.05
+
+    def _build_fallback_answer(self, citations: List[Citation]) -> str:
+        if not citations:
+            return "I cannot find this information in the document."
+        top = citations[0]
+        return (
+            "I found relevant passages, but the answer generator is temporarily unavailable. "
+            f"Please retry. Most relevant citation: {top.text_snippet}"
+        )
 
     async def query_document(
         self,
@@ -139,7 +181,9 @@ class RAGService:
             )
 
         # Step 5: Retrieve chunks from database
-        chunk_indices = [int(idx) for idx in indices.tolist() if int(idx) >= 0]
+        raw_indices = [int(idx) for idx in indices.tolist()]
+        raw_distances = [float(d) for d in distances.tolist()]
+        chunk_indices = [idx for idx in raw_indices if idx >= 0]
         if not chunk_indices:
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
             metrics_service.record_query(document_id, {
@@ -160,6 +204,9 @@ class RAGService:
             )
 
         chunks = await database_service.get_chunks_by_indices(document_id, chunk_indices)
+        distance_by_idx = {
+            idx: dist for idx, dist in zip(raw_indices, raw_distances) if idx >= 0
+        }
 
         # Sort chunks by relevance (same order as FAISS results)
         chunks_dict = {chunk["chunk_index"]: chunk for chunk in chunks}
@@ -171,16 +218,19 @@ class RAGService:
             semantic_score = 1.0 / (1.0 + math.log2(rank + 2))
             lexical_score = self._keyword_overlap_score(query, chunk.get("text", ""))
             hybrid_score = (0.65 * semantic_score) + (0.35 * lexical_score)
-            ranked.append((hybrid_score, chunk))
+            distance = distance_by_idx.get(chunk.get("chunk_index"), 1e6)
+            ranked.append((hybrid_score, chunk, distance))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        sorted_chunks = [chunk for _, chunk in ranked[:adaptive_top_k]]
+        selected_candidates = ranked[:adaptive_top_k]
 
         if source_filter:
             target = source_filter.strip().lower()
-            sorted_chunks = [
-                chunk for chunk in sorted_chunks
-                if (chunk.get("source_file") or "").strip().lower() == target
+            selected_candidates = [
+                candidate for candidate in selected_candidates
+                if (candidate[1].get("source_file") or "").strip().lower() == target
             ]
+
+        sorted_chunks = [candidate[1] for candidate in selected_candidates]
 
         if not sorted_chunks:
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -203,16 +253,23 @@ class RAGService:
             return response
 
         # Step 6: Generate answer using Gemini
-        answer = gemini_service.generate_answer(
-            query=query,
-            context_chunks=sorted_chunks
-        )
+        context_chunks = self._select_context_chunks(sorted_chunks)
+        try:
+            answer = gemini_service.generate_answer(
+                query=query,
+                context_chunks=context_chunks,
+                max_context_length=settings.max_context_chars,
+            )
+        except Exception:
+            answer = self._build_fallback_answer(self._create_citations(selected_candidates))
 
         # Step 7: Create citations
-        citations = self._create_citations(sorted_chunks, distances)
+        citations = self._create_citations(selected_candidates)
 
         # Step 8: Return response
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        grounding_score = self._grounding_score(answer, context_chunks)
+        answer_found = self._is_answer_found(answer, citations, grounding_score)
 
         response = QueryResponse(
             answer=answer,
@@ -220,7 +277,7 @@ class RAGService:
             document_id=document_id,
             query=query,
             latency_ms=latency_ms,
-            grounding_score=self._grounding_score(answer, sorted_chunks),
+            grounding_score=grounding_score,
         )
 
         avg_relevance_score = (
@@ -231,33 +288,31 @@ class RAGService:
             "latency_ms": latency_ms,
             "avg_relevance_score": avg_relevance_score,
             "num_citations": len(citations),
-            "answer_found": "I cannot find this information" not in answer,
-            "grounding_score": response.grounding_score or 0.0,
+            "answer_found": answer_found,
+            "grounding_score": grounding_score,
         })
         await database_service.insert_query_metric(
             document_id=document_id,
             latency_ms=latency_ms,
             avg_relevance_score=avg_relevance_score,
             num_citations=len(citations),
-            answer_found="I cannot find this information" not in answer,
-            grounding_score=response.grounding_score or 0.0,
+            answer_found=answer_found,
+            grounding_score=grounding_score,
         )
 
         return response
 
     def _create_citations(
         self,
-        chunks: List[dict],
-        distances: List[float]
+        candidates: List[tuple[float, dict, float]],
     ) -> List[Citation]:
         """Create citation objects from retrieved chunks."""
         citations = []
 
-        for i, chunk in enumerate(chunks):
+        for _, chunk, distance in candidates:
             if len(citations) >= settings.max_citations:
                 break
-            distance = float(distances[i]) if i < len(distances) else 10.0
-            relevance_score = max(0.0, 1.0 - (distance / 10.0))
+            relevance_score = 1.0 / (1.0 + max(0.0, float(distance)))
 
             source_file = chunk.get("source_file")
             source_page_number = chunk.get("source_page_number", chunk.get("page_number"))

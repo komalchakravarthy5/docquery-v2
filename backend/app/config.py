@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     max_upload_files: int = 3
     max_file_size_mb: int = 25
     max_chunks_per_workspace: int = 5000
+    max_context_chars: int = 6000
+    max_context_chunks: int = 12
     
     # Chunking Settings
     chunk_size: int = 500

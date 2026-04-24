@@ -71,7 +71,7 @@ async def test_configuration(docs_data: list, config_name: str, dynamic: bool):
             
             if len(distances) > 0:
                 # Calculate relevance natively like rag_service does
-                relevances = [max(0.0, 1.0 - (float(d) / 10.0)) for d in distances]
+                relevances = [1.0 / (1.0 + max(0.0, float(d))) for d in distances]
                 max_score = max(relevances)
                 total_relevance += max_score
                 total_citations += 1
