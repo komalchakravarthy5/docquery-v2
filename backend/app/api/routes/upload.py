@@ -24,10 +24,10 @@ class FilePayload(TypedDict):
 
 
 async def _materialize_uploads(files: List[UploadFile]) -> List[FilePayload]:
-    payloads: List[FilePayload] = []
-    for file in files:
-        payloads.append({"filename": file.filename, "content": await file.read()})
-    return payloads
+    async def _read(file: UploadFile) -> FilePayload:
+        return {"filename": file.filename, "content": await file.read()}
+
+    return await asyncio.gather(*[_read(file) for file in files])
 
 
 async def _process_workspace(files: List[FilePayload], job_id: str = None) -> DocumentUploadResponse:

@@ -40,9 +40,19 @@ Each sample should include:
 
 ## Execution commands
 
-### One-command full pipeline (recommended)
+Run all commands from the repository root (`docquery-v2/`).
+
+### 0) Start API server first (terminal 1)
 ```bash
-python backend/evaluation/run_capstone_evaluation.py \
+cd backend
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### 1) One-command full pipeline (terminal 2, recommended)
+This command uploads your chosen files, runs all benchmark questions, computes metrics, and generates plots.
+
+```bash
+python -m backend.evaluation.run_capstone_evaluation \
   --api http://127.0.0.1:8000/api \
   --dataset backend/evaluation/capstone_eval_dataset.json \
   --files /path/file1.pdf /path/file2.pdf /path/file3.pdf \
@@ -50,9 +60,17 @@ python backend/evaluation/run_capstone_evaluation.py \
   --run-judge
 ```
 
-1. Generate predictions by actually running model/API:
+Expected output artifacts:
+- `backend/evaluation/results/predictions.json`
+- `backend/evaluation/results/metrics_report.json`
+- `backend/evaluation/results/judge_report.json` (if `--run-judge`)
+- `backend/evaluation/results/plots/*.png`
+
+### 2) Step-by-step mode (optional)
+
+1. Generate predictions by running model/API:
    ```bash
-   python backend/evaluation/run_rag_benchmark.py \
+   python -m backend.evaluation.run_rag_benchmark \
      --dataset backend/evaluation/benchmark_dataset_template.json \
      --api http://127.0.0.1:8000/api \
      --out backend/evaluation/predictions.json
@@ -60,21 +78,21 @@ python backend/evaluation/run_capstone_evaluation.py \
 
 2. Compute retrieval/answer metrics:
    ```bash
-   python backend/evaluation/rag_quality_metrics.py \
+   python -m backend.evaluation.rag_quality_metrics \
      --pred backend/evaluation/predictions.json \
      --out backend/evaluation/metrics_report.json
    ```
 
 3. Compute judge metrics (faithfulness/relevance):
    ```bash
-   python backend/evaluation/rag_evaluator.py \
+   python -m backend.evaluation.rag_evaluator \
      --input backend/evaluation/predictions.json \
      --out backend/evaluation/judge_report.json
    ```
 
 4. Generate report/PPT graphs:
    ```bash
-   python backend/evaluation/plot_benchmark.py \
+   python -m backend.evaluation.plot_benchmark \
      --metrics backend/evaluation/metrics_report.json \
      --judge backend/evaluation/judge_report.json \
      --outdir backend/evaluation/plots

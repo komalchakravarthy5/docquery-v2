@@ -4,6 +4,7 @@ Manages SQLite database for document and chunk metadata.
 """
 
 import aiosqlite
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -18,74 +19,84 @@ class DatabaseService:
     def __init__(self):
         """Initialize database service"""
         self.db_path = settings.database_path
+        self._initialized = False
+        self._init_lock = asyncio.Lock()
         # Ensure database directory exists
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
     
     async def initialize(self):
         """Create database tables if they don't exist"""
-        async with aiosqlite.connect(self.db_path) as db:
-            # Create documents table
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS documents (
-                    id TEXT PRIMARY KEY,
-                    filename TEXT NOT NULL,
-                    upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    num_pages INTEGER NOT NULL,
-                    num_chunks INTEGER NOT NULL,
-                    file_path TEXT NOT NULL
-                )
-            """)
-            
-            # Create chunks table
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS chunks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    document_id TEXT NOT NULL,
-                    chunk_index INTEGER NOT NULL,
-                    page_number INTEGER NOT NULL,
-                    source_file TEXT,
-                    source_page_number INTEGER,
-                    text TEXT NOT NULL,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-                )
-            """)
+        if self._initialized:
+            return
 
-            # Backward-compatible lightweight migration for existing databases
-            async with db.execute("PRAGMA table_info(chunks)") as cursor:
-                columns = {row[1] for row in await cursor.fetchall()}
+        async with self._init_lock:
+            if self._initialized:
+                return
 
-            if "source_file" not in columns:
-                await db.execute("ALTER TABLE chunks ADD COLUMN source_file TEXT")
-            if "source_page_number" not in columns:
-                await db.execute("ALTER TABLE chunks ADD COLUMN source_page_number INTEGER")
-            
-            # Create index for faster queries
-            await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_chunks_document_id 
-                ON chunks(document_id)
-            """)
+            async with aiosqlite.connect(self.db_path) as db:
+                # Create documents table
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id TEXT PRIMARY KEY,
+                        filename TEXT NOT NULL,
+                        upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        num_pages INTEGER NOT NULL,
+                        num_chunks INTEGER NOT NULL,
+                        file_path TEXT NOT NULL
+                    )
+                """)
+                
+                # Create chunks table
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS chunks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        document_id TEXT NOT NULL,
+                        chunk_index INTEGER NOT NULL,
+                        page_number INTEGER NOT NULL,
+                        source_file TEXT,
+                        source_page_number INTEGER,
+                        text TEXT NOT NULL,
+                        FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                    )
+                """)
 
-            # Query metrics persistence for longitudinal benchmarking
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS query_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    document_id TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    latency_ms REAL NOT NULL,
-                    avg_relevance_score REAL NOT NULL,
-                    num_citations INTEGER NOT NULL,
-                    answer_found INTEGER NOT NULL,
-                    grounding_score REAL NOT NULL,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-                )
-            """)
+                # Backward-compatible lightweight migration for existing databases
+                async with db.execute("PRAGMA table_info(chunks)") as cursor:
+                    columns = {row[1] for row in await cursor.fetchall()}
 
-            await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_query_metrics_document_id
-                ON query_metrics(document_id)
-            """)
-            
-            await db.commit()
+                if "source_file" not in columns:
+                    await db.execute("ALTER TABLE chunks ADD COLUMN source_file TEXT")
+                if "source_page_number" not in columns:
+                    await db.execute("ALTER TABLE chunks ADD COLUMN source_page_number INTEGER")
+                
+                # Create index for faster queries
+                await db.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_chunks_document_id 
+                    ON chunks(document_id)
+                """)
+
+                # Query metrics persistence for longitudinal benchmarking
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS query_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        document_id TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        latency_ms REAL NOT NULL,
+                        avg_relevance_score REAL NOT NULL,
+                        num_citations INTEGER NOT NULL,
+                        answer_found INTEGER NOT NULL,
+                        grounding_score REAL NOT NULL,
+                        FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                    )
+                """)
+
+                await db.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_query_metrics_document_id
+                    ON query_metrics(document_id)
+                """)
+                
+                await db.commit()
+                self._initialized = True
     
     async def create_document(
         self,

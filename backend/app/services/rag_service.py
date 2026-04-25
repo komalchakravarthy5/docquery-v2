@@ -154,7 +154,7 @@ class RAGService:
         query_embedding = embedding_service.encode_text(query)
 
         # Step 4: Search FAISS index
-        search_k = min(num_chunks, max(adaptive_top_k * 4, 20))
+        search_k = min(num_chunks, max(adaptive_top_k * 3, 12))
         distances, indices = faiss_service.search(
             document_id=document_id,
             query_embedding=query_embedding,
@@ -215,10 +215,15 @@ class RAGService:
         # Hybrid rerank: combine semantic rank with keyword overlap
         ranked = []
         for rank, chunk in enumerate(sorted_chunks):
-            semantic_score = 1.0 / (1.0 + math.log2(rank + 2))
-            lexical_score = self._keyword_overlap_score(query, chunk.get("text", ""))
-            hybrid_score = (0.65 * semantic_score) + (0.35 * lexical_score)
             distance = distance_by_idx.get(chunk.get("chunk_index"), 1e6)
+            semantic_score = 1.0 / (1.0 + max(0.0, distance))
+            rank_prior_score = 1.0 / (1.0 + math.log2(rank + 2))
+            lexical_score = self._keyword_overlap_score(query, chunk.get("text", ""))
+            hybrid_score = (
+                (0.55 * semantic_score)
+                + (0.30 * lexical_score)
+                + (0.15 * rank_prior_score)
+            )
             ranked.append((hybrid_score, chunk, distance))
         ranked.sort(key=lambda x: x[0], reverse=True)
         selected_candidates = ranked[:adaptive_top_k]
