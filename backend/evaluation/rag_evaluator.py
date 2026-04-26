@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import time
 from statistics import mean
 from typing import Optional
 
@@ -37,7 +38,34 @@ def _extract_score(raw: str) -> Optional[float]:
     return score
 
 
-def judge_score(model, question: str, answer: str, context: str, rubric: str) -> Optional[float]:
+def _token_set(text: str) -> set[str]:
+    punctuation = ".,!?;:()[]{}\"'`"
+    return {tok.strip(punctuation).lower() for tok in text.split() if tok.strip()}
+
+
+def _overlap_ratio(a: str, b: str) -> float:
+    aa = _token_set(a)
+    bb = _token_set(b)
+    if not aa or not bb:
+        return 0.0
+    return len(aa & bb) / len(aa)
+
+
+def _heuristic_score(question: str, answer: str, context: str, rubric: str) -> float:
+    answer_support = _overlap_ratio(answer, context)
+    answer_focus = _overlap_ratio(question, answer)
+
+    if "hallucination" in rubric.lower() or "supported by context" in rubric.lower():
+        raw = answer_support
+    else:
+        raw = (0.6 * answer_focus) + (0.4 * answer_support)
+
+    # map 0..1 to 1..5 to remain consistent with judge scale
+    score = 1.0 + max(0.0, min(1.0, raw)) * 4.0
+    return round(score, 3)
+
+
+def judge_score(model, question: str, answer: str, context: str, rubric: str) -> tuple[Optional[float], str]:
     prompt = f"""You are grading an answer for a RAG system.
 Return only a numeric score between 1 and 5.
 
@@ -46,17 +74,25 @@ Question: {question}
 Answer: {answer}
 Context: {context}
 """
-    try:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.0,
-                max_output_tokens=8,
-            ),
-        )
-        return _extract_score((response.text or "").strip())
-    except Exception:
-        return None
+    retry_delays = [0.0, 1.5, 3.0]
+    for delay in retry_delays:
+        if delay:
+            time.sleep(delay)
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.0,
+                    max_output_tokens=8,
+                ),
+            )
+            score = _extract_score((response.text or "").strip())
+            if score is not None:
+                return score, "llm"
+        except Exception:
+            continue
+
+    return _heuristic_score(question, answer, context, rubric), "heuristic"
 
 
 def evaluate(samples: list[dict]) -> dict:
@@ -65,20 +101,22 @@ def evaluate(samples: list[dict]) -> dict:
     relevance_scores = []
     failed_faithfulness = 0
     failed_relevance = 0
+    heuristic_faithfulness = 0
+    heuristic_relevance = 0
 
     for s in samples:
         question = s.get("question", "")
         answer = s.get("predicted_answer", "")
         context = s.get("context", "")
 
-        faith = judge_score(
+        faith, faith_mode = judge_score(
             model,
             question,
             answer,
             context,
             "How fully is the answer supported by context only (no hallucination)?",
         )
-        rel = judge_score(
+        rel, rel_mode = judge_score(
             model,
             question,
             answer,
@@ -90,10 +128,14 @@ def evaluate(samples: list[dict]) -> dict:
             failed_faithfulness += 1
         else:
             faithfulness_scores.append(faith)
+            if faith_mode == "heuristic":
+                heuristic_faithfulness += 1
         if rel is None:
             failed_relevance += 1
         else:
             relevance_scores.append(rel)
+            if rel_mode == "heuristic":
+                heuristic_relevance += 1
 
     return {
         "num_samples": len(samples),
@@ -103,6 +145,8 @@ def evaluate(samples: list[dict]) -> dict:
         "relevance_scored_samples": len(relevance_scores),
         "faithfulness_failed_samples": failed_faithfulness,
         "relevance_failed_samples": failed_relevance,
+        "faithfulness_heuristic_samples": heuristic_faithfulness,
+        "relevance_heuristic_samples": heuristic_relevance,
     }
 
 

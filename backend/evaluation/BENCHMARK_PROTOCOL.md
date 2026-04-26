@@ -72,6 +72,11 @@ Expected output artifacts:
 - `backend/evaluation/results/judge_report.json` (if `--run-judge`)
 - `backend/evaluation/results/plots/*.png`
 
+Notes:
+- `judge_metrics.png` is generated only when `--run-judge` is used.
+- If Gemini free-tier quota is exhausted (HTTP 429), answer quality can drop because generation may fall back to extractive mode.
+- Judge scoring retries and then uses deterministic heuristic fallback when judge API calls fail; inspect `faithfulness_heuristic_samples` and `relevance_heuristic_samples` in `judge_report.json`.
+
 ### 2) Step-by-step mode (optional)
 
 1. Generate predictions by running model/API:
@@ -100,6 +105,7 @@ Expected output artifacts:
    ```bash
    python -m backend.evaluation.plot_benchmark \
      --metrics backend/evaluation/metrics_report.json \
+     --predictions backend/evaluation/predictions.json \
      --judge backend/evaluation/judge_report.json \
      --outdir backend/evaluation/plots
    ```

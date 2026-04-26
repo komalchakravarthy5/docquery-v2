@@ -102,7 +102,7 @@ def run_queries(api: str, document_id: str, dataset: List[dict]) -> List[dict]:
     return outputs
 
 
-def build_plots(metrics_path: Path, judge_path: Path | None, outdir: Path):
+def build_plots(metrics_path: Path, judge_path: Path | None, outdir: Path, predictions_path: Path | None = None):
     import subprocess
     from backend.evaluation.plot_benchmark import main as _  # noqa: F401
 
@@ -116,6 +116,8 @@ def build_plots(metrics_path: Path, judge_path: Path | None, outdir: Path):
     ]
     if judge_path and judge_path.exists():
         cmd.extend(["--judge", str(judge_path)])
+    if predictions_path and predictions_path.exists():
+        cmd.extend(["--predictions", str(predictions_path)])
     subprocess.run(cmd, check=True)
 
 
@@ -168,7 +170,7 @@ def main():
         judge_path.unlink()
         judge_path = None
 
-    build_plots(metrics_path, judge_path, outdir / "plots")
+    build_plots(metrics_path, judge_path, outdir / "plots", pred_path)
 
     print("\nEvaluation completed.")
     print(f"Predictions: {pred_path}")

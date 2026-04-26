@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--metrics", required=True, help="Output of rag_quality_metrics.py")
     parser.add_argument("--judge", required=False, help="Output of rag_evaluator.py")
+    parser.add_argument("--predictions", required=False, help="Output of run_capstone_evaluation.py predictions")
     parser.add_argument("--outdir", default="backend/evaluation/plots")
     args = parser.parse_args()
 
@@ -46,6 +47,22 @@ def main():
     fig.savefig(outdir / "retrieval_answer_metrics.png", dpi=200)
     plt.close(fig)
 
+    at_k_labels = ["Precision@K", "Hit@K"]
+    at_k_values = [
+        metrics.get("retrieval_precision_at_k", 0),
+        metrics.get("retrieval_hit_at_k", 0),
+    ]
+    fig, ax = plt.subplots(figsize=(6.5, 4.5))
+    bars = ax.bar(at_k_labels, at_k_values, color=["#9D5DFF", "#C1FF72"])
+    ax.set_ylim(0, 1.1)
+    ax.set_ylabel("Score")
+    ax.set_title("Retrieval@K Metrics")
+    for bar, value in zip(bars, at_k_values):
+        ax.text(bar.get_x() + bar.get_width() / 2, min(value + 0.02, 1.06), f"{value:.2f}", ha="center")
+    fig.tight_layout()
+    fig.savefig(outdir / "retrieval_at_k_metrics.png", dpi=200)
+    plt.close(fig)
+
     if args.judge:
         with open(args.judge, "r", encoding="utf-8") as f:
             judge = json.load(f)
@@ -65,6 +82,29 @@ def main():
         fig.tight_layout()
         fig.savefig(outdir / "judge_metrics.png", dpi=200)
         plt.close(fig)
+
+    if args.predictions:
+        with open(args.predictions, "r", encoding="utf-8") as f:
+            predictions = json.load(f)
+
+        latency_pairs = []
+        for idx, sample in enumerate(predictions, start=1):
+            latency = sample.get("query_latency_ms")
+            if isinstance(latency, (int, float)):
+                latency_pairs.append((idx, float(latency)))
+
+        if latency_pairs:
+            x_vals = [pair[0] for pair in latency_pairs]
+            y_vals = [pair[1] for pair in latency_pairs]
+            fig, ax = plt.subplots(figsize=(9, 4.8))
+            ax.plot(x_vals, y_vals, marker="o", color="#9D5DFF", linewidth=2)
+            ax.set_xlabel("Question #")
+            ax.set_ylabel("Latency (ms)")
+            ax.set_title("Per-Question Query Latency")
+            ax.grid(alpha=0.25, linestyle="--")
+            fig.tight_layout()
+            fig.savefig(outdir / "query_latency_trend.png", dpi=200)
+            plt.close(fig)
 
     print(f"Saved plots to: {outdir}")
 
