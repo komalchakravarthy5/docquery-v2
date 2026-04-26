@@ -28,8 +28,7 @@ const UploadZone = ({ onUpload, isUploading }) => {
   const processFiles = (fileList) => {
     if (!fileList || fileList.length === 0) return;
     
-    // Convert to array and grab up to 3 files max
-    const filesArray = Array.from(fileList).slice(0, 3);
+    const filesArray = Array.from(fileList);
     
     // Validate types natively
     const validFiles = filesArray.filter(f => {
@@ -85,12 +84,12 @@ const UploadZone = ({ onUpload, isUploading }) => {
         <p className="upload-text">
           {isUploading
             ? 'Extracting text and generating multi-document workspace...'
-            : 'Drag and drop up to 3 documents, or click to browse'}
+            : 'Drag and drop or click to browse your documents'}
         </p>
         <label htmlFor="file-upload" className="btn btn-primary" style={{ cursor: isUploading ? 'not-allowed' : 'pointer' }}>
           {isUploading ? 'Uploading...' : 'Choose Files'}
         </label>
-        <p className="upload-hint">Supports PDF, DOCX, PPTX, Excel, and CSV (Up to 3 combined)</p>
+        <p className="upload-hint">Supports PDF, DOCX, PPTX, Excel, and CSV.</p>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     top_k_retrieval: int = 5
     max_citations: int = 5
-    max_upload_files: int = 3
+    max_upload_files: int = 10
     max_file_size_mb: int = 25
     max_chunks_per_workspace: int = 5000
     max_context_chars: int = 6000

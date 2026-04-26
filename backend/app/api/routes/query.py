@@ -26,8 +26,18 @@ async def query_document(request: QueryRequest, http_request: Request):
         # Basic in-memory rate limiting per client IP
         client_ip = http_request.client.host if http_request.client else "unknown"
         now = time.time()
+
+        # Lightweight cleanup to avoid unbounded key growth
+        stale_cutoff = now - 60
+        for ip in list(_rate_limit_window.keys()):
+            recent = [ts for ts in _rate_limit_window[ip] if ts >= stale_cutoff]
+            if recent:
+                _rate_limit_window[ip] = recent
+            else:
+                _rate_limit_window.pop(ip, None)
+
         window = _rate_limit_window.get(client_ip, [])
-        window = [ts for ts in window if now - ts < 60]
+        window = [ts for ts in window if ts >= stale_cutoff]
         if len(window) >= settings.query_rate_limit_per_minute:
             raise HTTPException(status_code=429, detail="Rate limit exceeded. Please retry in a minute.")
         window.append(now)
