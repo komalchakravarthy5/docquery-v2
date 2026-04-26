@@ -50,6 +50,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ### 1) One-command full pipeline (terminal 2, recommended)
 This command uploads your chosen files, runs all benchmark questions, computes metrics, and generates plots.
+Important: every `source_filter` / `ground_truth_sources` entry in the dataset must be present in `--files`.
 
 ```bash
 python -m backend.evaluation.run_capstone_evaluation \
@@ -58,6 +59,11 @@ python -m backend.evaluation.run_capstone_evaluation \
   --files /path/file1.pdf /path/file2.pdf /path/file3.pdf \
   --outdir backend/evaluation/results \
   --run-judge
+```
+
+If you intentionally want to evaluate with missing files (not recommended for final reporting), add:
+```bash
+--allow-missing-sources
 ```
 
 Expected output artifacts:

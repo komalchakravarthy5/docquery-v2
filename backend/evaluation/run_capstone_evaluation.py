@@ -35,6 +35,28 @@ from backend.evaluation.rag_quality_metrics import evaluate as evaluate_quality
 from backend.evaluation.rag_evaluator import evaluate as evaluate_judge
 
 
+def _validate_dataset_sources(dataset: List[dict], file_paths: List[str], allow_missing_sources: bool = False) -> None:
+    uploaded_names = {Path(path).name for path in file_paths}
+    referenced = set()
+
+    for sample in dataset:
+        source_filter = (sample.get("source_filter") or "").strip()
+        if source_filter:
+            referenced.add(source_filter)
+        for source_name in sample.get("ground_truth_sources", []):
+            if source_name:
+                referenced.add(source_name.strip())
+
+    missing = sorted(name for name in referenced if name not in uploaded_names)
+    if missing and not allow_missing_sources:
+        missing_preview = "\n".join(f"  - {name}" for name in missing[:20])
+        raise ValueError(
+            "Dataset references sources that were not uploaded. "
+            "Upload all referenced files or pass --allow-missing-sources.\n"
+            f"Missing source files:\n{missing_preview}"
+        )
+
+
 def upload_workspace(api: str, file_paths: List[str]) -> str:
     files = [("files", (Path(path).name, open(path, "rb"), "application/octet-stream")) for path in file_paths]
     try:
@@ -74,6 +96,8 @@ def run_queries(api: str, document_id: str, dataset: List[dict]) -> List[dict]:
             "ground_truth_sources": sample.get("ground_truth_sources", []),
             "retrieved_sources": list(dict.fromkeys(retrieved_sources)),
             "context": "\n".join([c.get("text_snippet", "") for c in citations]),
+            "source_filter": sample.get("source_filter"),
+            "query_latency_ms": answer_payload.get("latency_ms"),
         })
     return outputs
 
@@ -103,6 +127,11 @@ def main():
     parser.add_argument("--files", nargs="+", required=True, help="Paths of files to upload for workspace")
     parser.add_argument("--outdir", default=str(base_dir / "results"))
     parser.add_argument("--run-judge", action="store_true")
+    parser.add_argument(
+        "--allow-missing-sources",
+        action="store_true",
+        help="Allow evaluation to run even when dataset references files not uploaded for this workspace.",
+    )
     args = parser.parse_args()
 
     outdir = Path(args.outdir)
@@ -110,6 +139,11 @@ def main():
 
     with open(args.dataset, "r", encoding="utf-8") as f:
         dataset = json.load(f)
+    _validate_dataset_sources(
+        dataset=dataset,
+        file_paths=args.files,
+        allow_missing_sources=args.allow_missing_sources,
+    )
 
     print("Uploading workspace files...")
     doc_id = upload_workspace(args.api, args.files)

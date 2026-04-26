@@ -1,52 +1,108 @@
-"""Advanced RAG evaluator with LLM-as-judge faithfulness/relevance."""
+"""LLM-as-judge evaluator for faithfulness/relevance.
+
+This module intentionally avoids defaulting failed judge calls to 1.0,
+because that can silently hide evaluation issues.
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
+import re
 from statistics import mean
-from app.services.gemini_service import gemini_service
+from typing import Optional
+
+import google.generativeai as genai
+
+from app.config import get_settings
+
+settings = get_settings()
+_SCORE_PATTERN = re.compile(r"\b([1-5](?:\.\d+)?)\b")
 
 
-def judge_score(question: str, answer: str, context: str, rubric: str) -> float:
-    prompt = f"""Score from 1 to 5.
+def _build_model():
+    if not settings.gemini_api_key:
+        raise ValueError("GEMINI_API_KEY is missing; cannot run LLM-as-judge evaluation.")
+    genai.configure(api_key=settings.gemini_api_key)
+    return genai.GenerativeModel(settings.gemini_model)
+
+
+def _extract_score(raw: str) -> Optional[float]:
+    match = _SCORE_PATTERN.search(raw or "")
+    if not match:
+        return None
+    score = float(match.group(1))
+    if score < 1 or score > 5:
+        return None
+    return score
+
+
+def judge_score(model, question: str, answer: str, context: str, rubric: str) -> Optional[float]:
+    prompt = f"""You are grading an answer for a RAG system.
+Return only a numeric score between 1 and 5.
+
 Rubric: {rubric}
 Question: {question}
 Answer: {answer}
 Context: {context}
-Return ONLY the numeric score.
 """
     try:
-        raw = gemini_service.generate_answer(prompt, [{"text": context, "page_number": 1, "source_file": "eval"}], max_context_length=7000)
-        value = float(''.join(ch for ch in raw if ch.isdigit() or ch == '.'))
-        return max(1.0, min(5.0, value))
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.0,
+                max_output_tokens=8,
+            ),
+        )
+        return _extract_score((response.text or "").strip())
     except Exception:
-        return 1.0
+        return None
 
 
 def evaluate(samples: list[dict]) -> dict:
+    model = _build_model()
     faithfulness_scores = []
     relevance_scores = []
+    failed_faithfulness = 0
+    failed_relevance = 0
 
     for s in samples:
         question = s.get("question", "")
         answer = s.get("predicted_answer", "")
         context = s.get("context", "")
-        faithfulness_scores.append(judge_score(
+
+        faith = judge_score(
+            model,
             question,
             answer,
             context,
-            "How well answer is fully supported by provided context without hallucination",
-        ))
-        relevance_scores.append(judge_score(
+            "How fully is the answer supported by context only (no hallucination)?",
+        )
+        rel = judge_score(
+            model,
             question,
             answer,
             context,
-            "How directly and completely answer addresses the question",
-        ))
+            "How directly and completely does the answer address the question?",
+        )
+
+        if faith is None:
+            failed_faithfulness += 1
+        else:
+            faithfulness_scores.append(faith)
+        if rel is None:
+            failed_relevance += 1
+        else:
+            relevance_scores.append(rel)
 
     return {
         "num_samples": len(samples),
         "faithfulness_mean_1to5": round(mean(faithfulness_scores), 3) if faithfulness_scores else 0.0,
         "answer_relevance_mean_1to5": round(mean(relevance_scores), 3) if relevance_scores else 0.0,
+        "faithfulness_scored_samples": len(faithfulness_scores),
+        "relevance_scored_samples": len(relevance_scores),
+        "faithfulness_failed_samples": failed_faithfulness,
+        "relevance_failed_samples": failed_relevance,
     }
 
 
