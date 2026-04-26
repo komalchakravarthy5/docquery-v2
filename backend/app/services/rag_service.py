@@ -87,13 +87,44 @@ class RAGService:
             return False
         return grounding_score >= 0.05
 
-    def _build_fallback_answer(self, citations: List[Citation]) -> str:
-        if not citations:
+    def _build_fallback_answer(self, query: str, chunks: List[dict], citations: List[Citation]) -> str:
+        if not citations or not chunks:
             return "I cannot find this information in the document."
-        top = citations[0]
+        query_tokens = self._tokenize(query)
+        candidates: List[tuple[float, str]] = []
+
+        for chunk in chunks[:8]:
+            text = chunk.get("text", "")
+            if not text:
+                continue
+            sentences = re.split(r"(?<=[.!?])\s+", text)
+            for sentence in sentences:
+                cleaned = sentence.strip()
+                if len(cleaned) < 40:
+                    continue
+                overlap = len(query_tokens & self._tokenize(cleaned))
+                score = (overlap * 2) + min(len(cleaned), 240) / 240
+                candidates.append((score, cleaned))
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        selected = []
+        seen = set()
+        for _, sentence in candidates:
+            key = sentence.lower()
+            if key in seen:
+                continue
+            selected.append(sentence)
+            seen.add(key)
+            if len(selected) >= 3:
+                break
+
+        if selected:
+            return " ".join(selected)
+
         return (
-            "I found relevant passages, but the answer generator is temporarily unavailable. "
-            f"Please retry. Most relevant citation: {top.text_snippet}"
+            citations[0].text_snippet
+            if citations
+            else "I cannot find this information in the document."
         )
 
     async def query_document(
@@ -266,7 +297,11 @@ class RAGService:
                 max_context_length=settings.max_context_chars,
             )
         except Exception:
-            answer = self._build_fallback_answer(self._create_citations(selected_candidates))
+            answer = self._build_fallback_answer(
+                query=query,
+                chunks=context_chunks,
+                citations=self._create_citations(selected_candidates),
+            )
 
         # Step 7: Create citations
         citations = self._create_citations(selected_candidates)

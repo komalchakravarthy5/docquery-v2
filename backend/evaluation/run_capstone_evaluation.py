@@ -159,12 +159,14 @@ def main():
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics_report, f, indent=2)
 
-    judge_path = None
+    judge_path = outdir / "judge_report.json"
     if args.run_judge:
         judge_report = evaluate_judge(predictions)
-        judge_path = outdir / "judge_report.json"
         with open(judge_path, "w", encoding="utf-8") as f:
             json.dump(judge_report, f, indent=2)
+    elif judge_path.exists():
+        judge_path.unlink()
+        judge_path = None
 
     build_plots(metrics_path, judge_path, outdir / "plots")
 
