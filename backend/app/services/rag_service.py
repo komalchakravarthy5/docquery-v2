@@ -170,9 +170,19 @@ class RAGService:
             raise ValueError(f"No indexed chunks found for document: {document_id}")
 
         adaptive_top_k = min(max(1, top_k), num_chunks)
-        adaptive_top_k = min(max(adaptive_top_k, num_sources * 6), num_chunks)
-        if any(hint in query.lower() for hint in self.SUMMARY_QUERY_HINTS):
-            adaptive_top_k = min(max(adaptive_top_k, 12), num_chunks)
+        query_is_summary = any(hint in query.lower() for hint in self.SUMMARY_QUERY_HINTS)
+
+        # Broaden retrieval only for true cross-document synthesis.
+        # When a source filter is active, prefer a tighter candidate set for speed/precision.
+        if source_filter:
+            if query_is_summary:
+                adaptive_top_k = min(max(adaptive_top_k, 8), num_chunks)
+            else:
+                adaptive_top_k = min(max(adaptive_top_k, 6), num_chunks)
+        else:
+            adaptive_top_k = min(max(adaptive_top_k, num_sources * 6), num_chunks)
+            if query_is_summary:
+                adaptive_top_k = min(max(adaptive_top_k, 12), num_chunks)
 
         # Step 2: Load FAISS index if not already loaded
         if not faiss_service.index_exists(document_id):
@@ -185,7 +195,7 @@ class RAGService:
         query_embedding = embedding_service.encode_text(query)
 
         # Step 4: Search FAISS index
-        search_k = min(num_chunks, max(adaptive_top_k * 3, 12))
+        search_k = min(num_chunks, max(adaptive_top_k * 2, 12))
         distances, indices = faiss_service.search(
             document_id=document_id,
             query_embedding=query_embedding,
