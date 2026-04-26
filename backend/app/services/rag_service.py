@@ -40,6 +40,12 @@ class RAGService:
     def _tokenize(text: str) -> set[str]:
         return {t for t in re.findall(r"[a-zA-Z0-9]+", text.lower()) if len(t) > 2}
 
+    @staticmethod
+    def _normalize_filename(value: str) -> str:
+        if not value:
+            return ""
+        return re.sub(r"[^a-z0-9]+", "", value.lower())
+
     def _keyword_overlap_score(self, query: str, chunk_text: str) -> float:
         q = self._tokenize(query)
         c = self._tokenize(chunk_text)
@@ -270,11 +276,24 @@ class RAGService:
         selected_candidates = ranked[:adaptive_top_k]
 
         if source_filter:
-            target = source_filter.strip().lower()
-            selected_candidates = [
+            target_raw = source_filter.strip().lower()
+            target_norm = self._normalize_filename(source_filter)
+
+            exact_filtered = [
                 candidate for candidate in selected_candidates
-                if (candidate[1].get("source_file") or "").strip().lower() == target
+                if (candidate[1].get("source_file") or "").strip().lower() == target_raw
             ]
+            if exact_filtered:
+                selected_candidates = exact_filtered
+            else:
+                # Fallback for filename variations (spaces, punctuation, accidental truncation)
+                fuzzy_filtered = []
+                for candidate in selected_candidates:
+                    source_name = (candidate[1].get("source_file") or "").strip()
+                    source_norm = self._normalize_filename(source_name)
+                    if source_norm and (target_norm in source_norm or source_norm in target_norm):
+                        fuzzy_filtered.append(candidate)
+                selected_candidates = fuzzy_filtered
 
         sorted_chunks = [candidate[1] for candidate in selected_candidates]
 
