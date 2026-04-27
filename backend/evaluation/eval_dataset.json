@@ -1,0 +1,50 @@
+[
+  {
+    "question": "What is the main objective of the RAG-based chatbot paper?",
+    "source_filter": "Implementing_a_RAG-Based_Chatbot_in_Industrial_Operations_A_Real-World_Case_Study.pdf",
+    "ground_truth_answer": "The paper proposes a RAG-based chatbot for industrial operations to provide real-time information from documents.",
+    "ground_truth_sources": ["Implementing_a_RAG-Based_Chatbot_in_Industrial_Operations_A_Real-World_Case_Study.pdf"]
+  },
+  {
+    "question": "What are the key components of a Retrieval-Augmented Generation system?",
+    "source_filter": "Comparative_Study_of_Chatbot_Architectures_Using_LLMs_and_RAG_Evaluating_FAISS-Based_Knowledge_Retrieval_Schemes.pdf",
+    "ground_truth_answer": "Key components include retriever, database, and generator.",
+    "ground_truth_sources": ["Comparative_Study_of_Chatbot_Architectures_Using_LLMs_and_RAG_Evaluating_FAISS-Based_Knowledge_Retrieval_Schemes.pdf"]
+  },
+  {
+    "question": "Summarize the key findings of the DocGenie paper in 3 points.",
+    "source_filter": "DocGenie_A_Retrieval-Augmented_Generation_Chatbot_for_Interactive_PDF_Exploration.pdf",
+    "ground_truth_answer": "DocGenie is a RAG-based chatbot for interactive PDF exploration.",
+    "ground_truth_sources": ["DocGenie_A_Retrieval-Augmented_Generation_Chatbot_for_Interactive_PDF_Exploration.pdf"]
+  },
+  {
+    "question": "What embedding strategies are discussed for non-English documents?",
+    "source_filter": "Enhancing_RAG_Pipeline_Performance_with_Translation-Based_Embedding_Strategies_for_Non-English_Documents.pdf",
+    "ground_truth_answer": "Translation-based embedding strategies for non-English documents.",
+    "ground_truth_sources": ["Enhancing_RAG_Pipeline_Performance_with_Translation-Based_Embedding_Strategies_for_Non-English_Documents.pdf"]
+  },
+  {
+    "question": "Compare semantic search and FAISS-based retrieval in RAG systems.",
+    "source_filter": "Semantic_Search_in_a_Document_Management_System_Using_Retrieval_Augmented_Generation.pdf",
+    "ground_truth_answer": "Semantic search uses embeddings for meaning-based retrieval while FAISS uses vector similarity.",
+    "ground_truth_sources": ["Semantic_Search_in_a_Document_Management_System_Using_Retrieval_Augmented_Generation.pdf"]
+  },
+  {
+    "question": "What is the purpose of using Llama-2 in RAG chatbots?",
+    "source_filter": "RAG-Based_LLM_Chatbot_Using_Llama-2.pdf",
+    "ground_truth_answer": "Llama-2 is used as the language model for generating answers in RAG chatbots.",
+    "ground_truth_sources": ["RAG-Based_LLM_Chatbot_Using_Llama-2.pdf"]
+  },
+  {
+    "question": "How does the biomedical chat assistant use BioMistral?",
+    "source_filter": "Biomedical_Chat_Assistant_with_Personalized_Document_Reader_Using_BioMistral_and_RAG.pdf",
+    "ground_truth_answer": "It uses BioMistral for biomedical domain-specific question answering with RAG.",
+    "ground_truth_sources": ["Biomedical_Chat_Assistant_with_Personalized_Document_Reader_Using_BioMistral_and_RAG.pdf"]
+  },
+  {
+    "question": "What are the advantages of using Zephyr-7b for document chatbots?",
+    "source_filter": "Context-Driven_Chatbot_Development_Leveraging_Zephyr-7b_with_RAG_for_Improved_Response_Accuracy.pdf",
+    "ground_truth_answer": "Zephyr-7b provides improved response accuracy for document chatbots.",
+    "ground_truth_sources": ["Context-Driven_Chatbot_Development_Leveraging_Zephyr-7b_with_RAG_for_Improved_Response_Accuracy.pdf"]
+  }
+]

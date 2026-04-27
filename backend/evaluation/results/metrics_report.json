@@ -1,0 +1,9 @@
+{
+  "num_samples": 8,
+  "answer_f1": 0.1315,
+  "retrieval_precision": 0.875,
+  "retrieval_recall": 0.875,
+  "retrieval_f1": 0.875,
+  "retrieval_precision_at_k": 0.875,
+  "retrieval_hit_at_k": 0.875
+}

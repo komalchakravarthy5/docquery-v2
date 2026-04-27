@@ -1,0 +1,11 @@
+{
+  "num_samples": 8,
+  "faithfulness_mean_1to5": 2.281,
+  "answer_relevance_mean_1to5": 3.089,
+  "faithfulness_scored_samples": 8,
+  "relevance_scored_samples": 8,
+  "faithfulness_failed_samples": 0,
+  "relevance_failed_samples": 0,
+  "faithfulness_heuristic_samples": 8,
+  "relevance_heuristic_samples": 8
+}
